@@ -1,0 +1,49 @@
+# Sample configuration file for Email Sender CLI
+# Copy this file and customize it for your use case
+# Run with: java -jar email-sender-cli.jar --spring.config.import=/path/to/your-config.yml
+
+email-sender:
+  microsoft:
+    # Azure AD / Microsoft Entra ID credentials
+    # These can also be set via environment variables:
+    # AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+    tenant-id: your-azure-tenant-id
+    client-id: your-azure-client-id
+    client-secret: your-azure-client-secret
+    # The email address that will appear as the sender
+    sender-email: sender@yourcompany.com
+
+  datasource:
+    # Type: 'csv' or 'excel'
+    type: excel
+    # Path to the data file containing recipient information
+    path: /path/to/recipients.xlsx
+    # Sheet name (only for Excel files, optional - defaults to first sheet)
+    sheet-name: Sheet1
+    # Column name that determines if a row should be processed
+    process-column: "SendEmail"
+    # Value that triggers processing (rows with this value will receive emails)
+    process-value: "Yes"
+
+  templates:
+    # Path to the Thymeleaf HTML template for email body
+    # Use ${fieldName} or [[${fieldName}]] syntax for Thymeleaf variables
+    email-body: /path/to/email-template.html
+    # Path to the Word document template for PDF attachment
+    # Use {{fieldName}} syntax for placeholders in the Word document
+    attachment: /path/to/document-template.docx
+
+  email:
+    # Subject line template - use {{fieldName}} for placeholder substitution
+    subject-template: "Hello {{name}}, your report is ready"
+    # Column name in the data source containing recipient email addresses
+    recipient-column: "Email"
+    # Filename for the PDF attachment
+    attachment-filename: "report.pdf"
+
+  # Optional: Map placeholders to different column names in your data source
+  # Useful when your column names don't match placeholder names
+  field-mappings:
+    "{{name}}": "FullName"
+    "{{company}}": "CompanyName"
+    "{{date}}": "ReportDate"

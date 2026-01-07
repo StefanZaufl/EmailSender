@@ -1,0 +1,5 @@
+FullName,Email,CompanyName,ReportDate,SendEmail
+John Doe,john.doe@example.com,Acme Corp,January 2024,Yes
+Jane Smith,jane.smith@example.com,Tech Solutions,January 2024,Yes
+Bob Wilson,bob.wilson@example.com,Global Inc,January 2024,No
+Alice Johnson,alice.johnson@example.com,StartupXYZ,January 2024,Yes

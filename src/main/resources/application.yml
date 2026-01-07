@@ -1,0 +1,51 @@
+# Email Sender CLI Application Configuration
+# This file contains default values that can be overridden via:
+# 1. External config file: --spring.config.import=/path/to/config.yml
+# 2. Environment variables
+# 3. Command line arguments
+
+spring:
+  application:
+    name: email-sender-cli
+  main:
+    banner-mode: off
+    web-application-type: none
+
+logging:
+  level:
+    root: INFO
+    com.yourcompany.emailsender: INFO
+    # Set to DEBUG for more detailed logging:
+    # com.yourcompany.emailsender: DEBUG
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+
+# Email Sender Configuration
+# These values should be provided via an external config file
+email-sender:
+  microsoft:
+    tenant-id: ${AZURE_TENANT_ID:your-tenant-id}
+    client-id: ${AZURE_CLIENT_ID:your-client-id}
+    client-secret: ${AZURE_CLIENT_SECRET:your-client-secret}
+    sender-email: ${SENDER_EMAIL:sender@company.com}
+
+  datasource:
+    type: ${DATA_SOURCE_TYPE:csv}
+    path: ${DATA_SOURCE_PATH:/path/to/data.csv}
+    sheet-name: ${SHEET_NAME:Sheet1}
+    process-column: ${PROCESS_COLUMN:SendEmail}
+    process-value: ${PROCESS_VALUE:Yes}
+
+  templates:
+    email-body: ${EMAIL_TEMPLATE_PATH:/path/to/email-template.html}
+    attachment: ${ATTACHMENT_TEMPLATE_PATH:/path/to/attachment-template.docx}
+
+  email:
+    subject-template: ${EMAIL_SUBJECT:Hello {{name}}, your document is ready}
+    recipient-column: ${RECIPIENT_COLUMN:Email}
+    attachment-filename: ${ATTACHMENT_FILENAME:document.pdf}
+
+  # Optional field mappings to map placeholders to column names
+  # field-mappings:
+  #   "{{name}}": "FullName"
+  #   "{{company}}": "CompanyName"
