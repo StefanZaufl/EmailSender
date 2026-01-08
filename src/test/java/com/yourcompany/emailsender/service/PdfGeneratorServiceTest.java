@@ -3,6 +3,8 @@ package com.yourcompany.emailsender.service;
 import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
+import org.docx4j.Docx4jProperties;
+import org.docx4j.fonts.PhysicalFonts;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
 import org.junit.jupiter.api.BeforeAll;
@@ -36,6 +38,12 @@ class PdfGeneratorServiceTest {
 
     @BeforeAll
     static void checkPdfSupport() {
+        // Configure docx4j to avoid font scanning issues on different systems.
+        // Set a restrictive regex to limit font discovery to only common safe fonts.
+        // This must be done BEFORE any Mapper is created (which triggers font discovery).
+        PhysicalFonts.setRegex(".*(calibri|cour|arial|times|comic|georgia|impact|tahoma|trebuc|verdana|symbol|webdings|wingding|liberation|dejavu|freesans|freeserif|freemono).*");
+        Docx4jProperties.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", true);
+
         // Check if PDF generation is supported in the current environment.
         // Some systems have font configurations that cause docx4j to fail.
         try {
