@@ -282,6 +282,9 @@ class DryRunIntegrationTest {
     /**
      * Creates a valid DOCX template file with placeholders for personalization.
      * Uses Apache POI to create a proper Word document.
+     *
+     * The PdfGeneratorService uses {{variable}} format for placeholder matching
+     * and does direct string replacement in the document XML.
      */
     private Path createAttachmentTemplate() throws IOException {
         Path templateFile = templateDir.resolve("attachment-template.docx");
@@ -294,20 +297,32 @@ class DryRunIntegrationTest {
             titleRun.setBold(true);
             titleRun.setFontSize(16);
 
-            // Recipient paragraph with placeholder
+            // Add an empty paragraph for spacing
+            document.createParagraph();
+
+            // Recipient paragraph with placeholder - use separate runs to avoid XML splitting issues
             XWPFParagraph recipientParagraph = document.createParagraph();
-            XWPFRun recipientRun = recipientParagraph.createRun();
-            recipientRun.setText("Prepared for: {{FullName}}");
+            XWPFRun recipientLabelRun = recipientParagraph.createRun();
+            recipientLabelRun.setText("Prepared for: ");
+            XWPFRun recipientValueRun = recipientParagraph.createRun();
+            recipientValueRun.setText("{{FullName}}");
 
             // Company paragraph with placeholder
             XWPFParagraph companyParagraph = document.createParagraph();
-            XWPFRun companyRun = companyParagraph.createRun();
-            companyRun.setText("Company: {{CompanyName}}");
+            XWPFRun companyLabelRun = companyParagraph.createRun();
+            companyLabelRun.setText("Company: ");
+            XWPFRun companyValueRun = companyParagraph.createRun();
+            companyValueRun.setText("{{CompanyName}}");
 
             // Date paragraph with placeholder
             XWPFParagraph dateParagraph = document.createParagraph();
-            XWPFRun dateRun = dateParagraph.createRun();
-            dateRun.setText("Report Date: {{ReportDate}}");
+            XWPFRun dateLabelRun = dateParagraph.createRun();
+            dateLabelRun.setText("Report Date: ");
+            XWPFRun dateValueRun = dateParagraph.createRun();
+            dateValueRun.setText("{{ReportDate}}");
+
+            // Add an empty paragraph for spacing
+            document.createParagraph();
 
             // Content paragraph
             XWPFParagraph contentParagraph = document.createParagraph();
