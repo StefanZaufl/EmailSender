@@ -1,13 +1,10 @@
 package com.yourcompany.emailsender.service.processor;
 
-import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
 import com.yourcompany.emailsender.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,14 +13,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 class DryRunEmailProcessorTest {
 
-    @Mock
-    private EmailService emailService;
-
+    private StubEmailService stubEmailService;
     private DryRunEmailProcessor processor;
 
     @TempDir
@@ -31,8 +24,8 @@ class DryRunEmailProcessorTest {
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-        processor = new DryRunEmailProcessor(emailService);
+        stubEmailService = new StubEmailService();
+        processor = new DryRunEmailProcessor(stubEmailService);
     }
 
     @Test
@@ -86,14 +79,13 @@ class DryRunEmailProcessorTest {
         fields.put("name", "John Doe");
         EmailData emailData = new EmailData("john@example.com", fields, 1);
 
-        EmailService.EmailContent content = new EmailService.EmailContent(
+        stubEmailService.setEmailContent(new EmailService.EmailContent(
                 "john@example.com",
                 "Test Subject",
                 "<html><body>Test Body</body></html>",
                 new byte[]{0x25, 0x50, 0x44, 0x46}, // %PDF
                 1
-        );
-        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+        ));
 
         // Act
         processor.process(emailData);
@@ -117,14 +109,13 @@ class DryRunEmailProcessorTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         String expectedBody = "<html><body>Hello World</body></html>";
-        EmailService.EmailContent content = new EmailService.EmailContent(
+        stubEmailService.setEmailContent(new EmailService.EmailContent(
                 "test@example.com",
                 "Subject",
                 expectedBody,
                 new byte[]{},
                 1
-        );
-        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+        ));
 
         // Act
         processor.process(emailData);
@@ -143,14 +134,13 @@ class DryRunEmailProcessorTest {
         Map<String, String> fields = new HashMap<>();
         EmailData emailData = new EmailData("meta@example.com", fields, 5);
 
-        EmailService.EmailContent content = new EmailService.EmailContent(
+        stubEmailService.setEmailContent(new EmailService.EmailContent(
                 "meta@example.com",
                 "Important Subject",
                 "<html></html>",
                 new byte[]{},
                 5
-        );
-        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+        ));
 
         // Act
         processor.process(emailData);
@@ -172,14 +162,13 @@ class DryRunEmailProcessorTest {
         Map<String, String> fields = new HashMap<>();
         EmailData emailData = new EmailData("user+tag@example.com", fields, 1);
 
-        EmailService.EmailContent content = new EmailService.EmailContent(
+        stubEmailService.setEmailContent(new EmailService.EmailContent(
                 "user+tag@example.com",
                 "Subject",
                 "<html></html>",
                 new byte[]{},
                 1
-        );
-        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+        ));
 
         // Act
         processor.process(emailData);
@@ -198,14 +187,13 @@ class DryRunEmailProcessorTest {
         EmailData emailData = new EmailData("pdf@example.com", fields, 1);
 
         byte[] expectedPdf = new byte[]{0x25, 0x50, 0x44, 0x46, 0x2D}; // %PDF-
-        EmailService.EmailContent content = new EmailService.EmailContent(
+        stubEmailService.setEmailContent(new EmailService.EmailContent(
                 "pdf@example.com",
                 "Subject",
                 "<html></html>",
                 expectedPdf,
                 1
-        );
-        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+        ));
 
         // Act
         processor.process(emailData);
@@ -214,5 +202,41 @@ class DryRunEmailProcessorTest {
         Path pdfFile = tempDir.resolve("row1_pdf@example.com_attachment.pdf");
         byte[] actualPdf = Files.readAllBytes(pdfFile);
         assertArrayEquals(expectedPdf, actualPdf);
+    }
+
+    /**
+     * Stub implementation of EmailService for testing.
+     */
+    private static class StubEmailService extends EmailService {
+        private EmailContent emailContent;
+        private EmailData lastSentEmailData;
+        private boolean sendEmailCalled = false;
+
+        StubEmailService() {
+            super(null, null, null, null);
+        }
+
+        void setEmailContent(EmailContent content) {
+            this.emailContent = content;
+        }
+
+        @Override
+        public EmailContent prepareEmail(EmailData emailData) {
+            return emailContent;
+        }
+
+        @Override
+        public void sendEmail(EmailData emailData) {
+            this.lastSentEmailData = emailData;
+            this.sendEmailCalled = true;
+        }
+
+        EmailData getLastSentEmailData() {
+            return lastSentEmailData;
+        }
+
+        boolean wasSendEmailCalled() {
+            return sendEmailCalled;
+        }
     }
 }

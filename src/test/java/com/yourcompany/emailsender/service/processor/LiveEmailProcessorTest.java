@@ -4,26 +4,21 @@ import com.yourcompany.emailsender.model.EmailData;
 import com.yourcompany.emailsender.service.EmailService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
 
 class LiveEmailProcessorTest {
 
-    @Mock
-    private EmailService emailService;
-
+    private StubEmailService stubEmailService;
     private LiveEmailProcessor processor;
 
     @BeforeEach
     void setUp() {
-        MockitoAnnotations.openMocks(this);
-        processor = new LiveEmailProcessor(emailService);
+        stubEmailService = new StubEmailService();
+        processor = new LiveEmailProcessor(stubEmailService);
     }
 
     @Test
@@ -47,7 +42,8 @@ class LiveEmailProcessorTest {
         processor.process(emailData);
 
         // Assert
-        verify(emailService, times(1)).sendEmail(emailData);
+        assertTrue(stubEmailService.wasSendEmailCalled());
+        assertEquals(1, stubEmailService.getSendEmailCallCount());
     }
 
     @Test
@@ -62,25 +58,25 @@ class LiveEmailProcessorTest {
         processor.process(emailData);
 
         // Assert
-        verify(emailService).sendEmail(argThat(data ->
-                data.getRecipientEmail().equals("jane@example.com") &&
-                data.getRowNumber() == 5 &&
-                data.getField("name").equals("Jane Smith") &&
-                data.getField("company").equals("Tech Corp")
-        ));
+        EmailData sentData = stubEmailService.getLastSentEmailData();
+        assertNotNull(sentData);
+        assertEquals("jane@example.com", sentData.getRecipientEmail());
+        assertEquals(5, sentData.getRowNumber());
+        assertEquals("Jane Smith", sentData.getField("name"));
+        assertEquals("Tech Corp", sentData.getField("company"));
     }
 
     @Test
     void process_propagatesExceptions() {
         // Arrange
+        stubEmailService.setThrowOnSend(new RuntimeException("Email send failed"));
+
         Map<String, String> fields = new HashMap<>();
         EmailData emailData = new EmailData("error@example.com", fields, 1);
 
-        doThrow(new RuntimeException("Email send failed"))
-                .when(emailService).sendEmail(any(EmailData.class));
-
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> processor.process(emailData));
+        RuntimeException thrown = assertThrows(RuntimeException.class, () -> processor.process(emailData));
+        assertEquals("Email send failed", thrown.getMessage());
     }
 
     @Test
@@ -92,5 +88,71 @@ class LiveEmailProcessorTest {
     @Test
     void implementsEmailProcessingStrategy() {
         assertTrue(processor instanceof EmailProcessingStrategy);
+    }
+
+    @Test
+    void process_multipleEmails_callsSendEmailMultipleTimes() {
+        // Arrange
+        EmailData emailData1 = new EmailData("first@example.com", new HashMap<>(), 1);
+        EmailData emailData2 = new EmailData("second@example.com", new HashMap<>(), 2);
+        EmailData emailData3 = new EmailData("third@example.com", new HashMap<>(), 3);
+
+        // Act
+        processor.process(emailData1);
+        processor.process(emailData2);
+        processor.process(emailData3);
+
+        // Assert
+        assertEquals(3, stubEmailService.getSendEmailCallCount());
+        assertEquals("third@example.com", stubEmailService.getLastSentEmailData().getRecipientEmail());
+    }
+
+    /**
+     * Stub implementation of EmailService for testing.
+     */
+    private static class StubEmailService extends EmailService {
+        private EmailData lastSentEmailData;
+        private int sendEmailCallCount = 0;
+        private RuntimeException throwOnSend;
+
+        StubEmailService() {
+            super(null, null, null, null);
+        }
+
+        void setThrowOnSend(RuntimeException exception) {
+            this.throwOnSend = exception;
+        }
+
+        @Override
+        public void sendEmail(EmailData emailData) {
+            if (throwOnSend != null) {
+                throw throwOnSend;
+            }
+            this.lastSentEmailData = emailData;
+            this.sendEmailCallCount++;
+        }
+
+        @Override
+        public EmailContent prepareEmail(EmailData emailData) {
+            return new EmailContent(
+                    emailData.getRecipientEmail(),
+                    "Subject",
+                    "<html></html>",
+                    new byte[]{},
+                    emailData.getRowNumber()
+            );
+        }
+
+        EmailData getLastSentEmailData() {
+            return lastSentEmailData;
+        }
+
+        boolean wasSendEmailCalled() {
+            return sendEmailCallCount > 0;
+        }
+
+        int getSendEmailCallCount() {
+            return sendEmailCallCount;
+        }
     }
 }
