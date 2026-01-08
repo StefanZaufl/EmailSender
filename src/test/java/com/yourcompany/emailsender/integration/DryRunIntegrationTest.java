@@ -20,6 +20,8 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.docx4j.Docx4jProperties;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -51,6 +53,19 @@ class DryRunIntegrationTest {
     private Path outputDir;
     private Path dataDir;
     private Path templateDir;
+
+    @BeforeAll
+    static void configureDocx4j() {
+        // Configure docx4j to avoid font scanning issues on different systems
+        // These properties must be set before any docx4j font-related classes are loaded
+
+        // Ignore font directories to prevent scanning problematic system fonts
+        System.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", "true");
+        Docx4jProperties.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", true);
+
+        // Use BestMatchingMapper instead of IdentityPlusMapper to avoid font discovery issues
+        Docx4jProperties.setProperty("docx4j.fonts.mapper", "org.docx4j.fonts.BestMatchingMapper");
+    }
 
     @BeforeEach
     void setUp() throws IOException {
