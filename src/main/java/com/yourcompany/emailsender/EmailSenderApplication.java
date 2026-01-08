@@ -2,6 +2,8 @@ package com.yourcompany.emailsender;
 
 import com.yourcompany.emailsender.cli.SendEmailCommand;
 import com.yourcompany.emailsender.config.AppConfig;
+import org.docx4j.Docx4jProperties;
+import org.docx4j.fonts.PhysicalFonts;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.ExitCodeGenerator;
 import org.springframework.boot.SpringApplication;
@@ -28,7 +30,18 @@ public class EmailSenderApplication implements CommandLineRunner, ExitCodeGenera
     }
 
     public static void main(String[] args) {
+        configureDocx4jFonts();
         System.exit(SpringApplication.exit(SpringApplication.run(EmailSenderApplication.class, args)));
+    }
+
+    /**
+     * Configure docx4j font scanning to avoid issues with certain fonts.
+     * Some fonts (like Noto emoji fonts) have complex glyph tables that can cause
+     * AssertionError during font discovery. This limits scanning to common safe fonts.
+     */
+    private static void configureDocx4jFonts() {
+        PhysicalFonts.setRegex(".*(calibri|cour|arial|times|comic|georgia|impact|tahoma|trebuc|verdana|symbol|webdings|wingding|liberation|dejavu|freesans|freeserif|freemono).*");
+        Docx4jProperties.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", true);
     }
 
     @Override

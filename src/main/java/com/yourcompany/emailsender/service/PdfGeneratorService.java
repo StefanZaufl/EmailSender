@@ -4,6 +4,7 @@ import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
 import org.docx4j.Docx4J;
+import org.docx4j.XmlUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
 import org.slf4j.Logger;
@@ -142,13 +143,13 @@ public class PdfGeneratorService {
             );
         }
 
-        // Alternative: direct string replacement for complex cases
+        // Direct string replacement for {{variable}} placeholders
         String xmlContent = documentPart.getXML();
         for (Map.Entry<String, String> entry : replacements.entrySet()) {
             xmlContent = xmlContent.replace(entry.getKey(), entry.getValue());
         }
 
-        // If direct replacement was needed, update the document
-        // Note: For most cases, variableReplace should work
+        // Apply the modified XML back to the document
+        documentPart.setContents((org.docx4j.wml.Document)XmlUtils.unmarshalString(xmlContent));
     }
 }
