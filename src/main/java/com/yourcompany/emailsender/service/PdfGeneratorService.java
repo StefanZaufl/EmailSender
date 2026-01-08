@@ -150,6 +150,6 @@ public class PdfGeneratorService {
         }
 
         // Apply the modified XML back to the document
-        documentPart.setContents(XmlUtils.unmarshalString(xmlContent));
+        documentPart.setContents((org.docx4j.wml.Document)XmlUtils.unmarshalString(xmlContent));
     }
 }
