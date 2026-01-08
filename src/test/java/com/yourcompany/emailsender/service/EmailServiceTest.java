@@ -5,6 +5,7 @@ import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
 import com.microsoft.graph.users.item.sendmail.SendMailRequestBuilder;
 import com.microsoft.kiota.ApiException;
+import com.microsoft.kiota.ResponseHeaders;
 import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
@@ -14,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -296,8 +298,11 @@ class EmailServiceTest {
         ApiException exception = mock(ApiException.class);
         when(exception.getResponseStatusCode()).thenReturn(statusCode);
 
-        Map<String, Set<String>> headers = new HashMap<>();
-        headers.put("Retry-After", Set.of(String.valueOf(retryAfterSeconds)));
+        // Mock ResponseHeaders - it extends HashMap<String, Set<String>>
+        ResponseHeaders headers = mock(ResponseHeaders.class);
+        Set<String> retryAfterValue = new HashSet<>();
+        retryAfterValue.add(String.valueOf(retryAfterSeconds));
+        when(headers.get("Retry-After")).thenReturn(retryAfterValue);
         when(exception.getResponseHeaders()).thenReturn(headers);
 
         return exception;
