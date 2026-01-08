@@ -4,14 +4,15 @@ import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
 import com.yourcompany.emailsender.service.DataSourceReader;
-import com.yourcompany.emailsender.service.EmailService;
+import com.yourcompany.emailsender.service.processor.DryRunEmailProcessor;
+import com.yourcompany.emailsender.service.processor.EmailProcessingStrategy;
+import com.yourcompany.emailsender.service.processor.LiveEmailProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -34,7 +35,8 @@ public class SendEmailCommand implements Callable<Integer> {
 
     private final AppConfig appConfig;
     private final List<DataSourceReader> dataSourceReaders;
-    private final EmailService emailService;
+    private final LiveEmailProcessor liveEmailProcessor;
+    private final DryRunEmailProcessor dryRunEmailProcessor;
 
     @Option(names = {"--dry-run"}, description = "Process everything but don't send emails - write output files to disk instead")
     private boolean dryRun;
@@ -45,10 +47,14 @@ public class SendEmailCommand implements Callable<Integer> {
     @Option(names = {"--output-dir", "-o"}, description = "Output directory for dry-run mode (default: ./output)")
     private String outputDir = "./output";
 
-    public SendEmailCommand(AppConfig appConfig, List<DataSourceReader> dataSourceReaders, EmailService emailService) {
+    public SendEmailCommand(AppConfig appConfig,
+                            List<DataSourceReader> dataSourceReaders,
+                            LiveEmailProcessor liveEmailProcessor,
+                            DryRunEmailProcessor dryRunEmailProcessor) {
         this.appConfig = appConfig;
         this.dataSourceReaders = dataSourceReaders;
-        this.emailService = emailService;
+        this.liveEmailProcessor = liveEmailProcessor;
+        this.dryRunEmailProcessor = dryRunEmailProcessor;
     }
 
     @Override
@@ -56,9 +62,10 @@ public class SendEmailCommand implements Callable<Integer> {
         try {
             logger.info("Starting email sender...");
 
-            if (dryRun) {
-                logger.info("*** DRY RUN MODE - No emails will be sent ***");
-            }
+            // Select the appropriate processing strategy
+            EmailProcessingStrategy processor = selectProcessor();
+
+            logger.info("*** {} MODE ***", processor.getModeName());
 
             if (verbose) {
                 logger.info("Verbose mode enabled");
@@ -66,6 +73,9 @@ public class SendEmailCommand implements Callable<Integer> {
 
             // Validate configuration
             validateConfiguration();
+
+            // Initialize the processor
+            processor.initialize();
 
             // Read data from source
             List<EmailData> emailDataList = readDataSource();
@@ -77,7 +87,7 @@ public class SendEmailCommand implements Callable<Integer> {
 
             logger.info("Found {} rows to process", emailDataList.size());
 
-            // Process each row
+            // Process each row using the selected strategy
             List<FailedEmail> failures = new ArrayList<>();
             int successCount = 0;
 
@@ -86,11 +96,7 @@ public class SendEmailCommand implements Callable<Integer> {
                 logger.info("Processing {} of {}: {}", i + 1, emailDataList.size(), emailData.getRecipientEmail());
 
                 try {
-                    if (dryRun) {
-                        processDryRun(emailData);
-                    } else {
-                        emailService.sendEmail(emailData);
-                    }
+                    processor.process(emailData);
                     successCount++;
                 } catch (Exception e) {
                     logger.error("Failed to process row {}: {}", emailData.getRowNumber(), e.getMessage());
@@ -102,7 +108,7 @@ public class SendEmailCommand implements Callable<Integer> {
             }
 
             // Report results
-            printSummary(successCount, failures, emailDataList.size());
+            printSummary(successCount, failures, emailDataList.size(), processor);
 
             return failures.isEmpty() ? 0 : 1;
 
@@ -113,6 +119,14 @@ public class SendEmailCommand implements Callable<Integer> {
             }
             return 2;
         }
+    }
+
+    private EmailProcessingStrategy selectProcessor() {
+        if (dryRun) {
+            dryRunEmailProcessor.setOutputDirectory(outputDir);
+            return dryRunEmailProcessor;
+        }
+        return liveEmailProcessor;
     }
 
     private void validateConfiguration() {
@@ -159,41 +173,8 @@ public class SendEmailCommand implements Callable<Integer> {
         );
     }
 
-    private void processDryRun(EmailData emailData) throws IOException {
-        EmailService.EmailContent content = emailService.prepareEmail(emailData);
-
-        // Create output directory if needed
-        Path outputPath = Path.of(outputDir);
-        if (!Files.exists(outputPath)) {
-            Files.createDirectories(outputPath);
-        }
-
-        // Generate safe filename from email
-        String safeEmail = content.recipientEmail().replaceAll("[^a-zA-Z0-9@.]", "_");
-        String baseFilename = String.format("row%d_%s", content.rowNumber(), safeEmail);
-
-        // Write HTML body
-        Path htmlPath = outputPath.resolve(baseFilename + "_body.html");
-        Files.writeString(htmlPath, content.htmlBody());
-        logger.info("  -> Written: {}", htmlPath);
-
-        // Write PDF attachment
-        Path pdfPath = outputPath.resolve(baseFilename + "_attachment.pdf");
-        Files.write(pdfPath, content.pdfAttachment());
-        logger.info("  -> Written: {}", pdfPath);
-
-        // Write email metadata
-        Path metaPath = outputPath.resolve(baseFilename + "_meta.txt");
-        String metadata = String.format("""
-                To: %s
-                Subject: %s
-                Row Number: %d
-                """, content.recipientEmail(), content.subject(), content.rowNumber());
-        Files.writeString(metaPath, metadata);
-        logger.info("  -> Written: {}", metaPath);
-    }
-
-    private void printSummary(int successCount, List<FailedEmail> failures, int totalCount) {
+    private void printSummary(int successCount, List<FailedEmail> failures, int totalCount,
+                              EmailProcessingStrategy processor) {
         logger.info("========================================");
         logger.info("PROCESSING COMPLETE");
         logger.info("========================================");
@@ -212,9 +193,10 @@ public class SendEmailCommand implements Callable<Integer> {
             }
         }
 
-        if (dryRun) {
+        String completionMessage = processor.getCompletionMessage();
+        if (completionMessage != null) {
             logger.info("----------------------------------------");
-            logger.info("DRY RUN: Output files written to: {}", outputDir);
+            logger.info(completionMessage);
         }
     }
 
