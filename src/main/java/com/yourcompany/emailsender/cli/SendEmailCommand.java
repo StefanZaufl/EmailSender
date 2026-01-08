@@ -87,6 +87,14 @@ public class SendEmailCommand implements Callable<Integer> {
 
             logger.info("Found {} rows to process", emailDataList.size());
 
+            // Log throttling configuration for live mode
+            AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
+            boolean shouldThrottle = !dryRun && throttling.isEnabled();
+            if (shouldThrottle) {
+                logger.info("Throttling enabled: {} emails/minute ({}ms delay between emails)",
+                        throttling.getEmailsPerMinute(), throttling.getDelayBetweenEmailsMs());
+            }
+
             // Process each row using the selected strategy
             List<FailedEmail> failures = new ArrayList<>();
             int successCount = 0;
@@ -98,6 +106,20 @@ public class SendEmailCommand implements Callable<Integer> {
                 try {
                     processor.process(emailData);
                     successCount++;
+
+                    // Apply throttling delay between emails (not after the last one)
+                    if (shouldThrottle && i < emailDataList.size() - 1) {
+                        long delayMs = throttling.getDelayBetweenEmailsMs();
+                        if (delayMs > 0) {
+                            logger.debug("Throttling: waiting {}ms before next email", delayMs);
+                            Thread.sleep(delayMs);
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    logger.error("Email sending interrupted");
+                    failures.add(new FailedEmail(emailData, "Interrupted"));
+                    break;
                 } catch (Exception e) {
                     logger.error("Failed to process row {}: {}", emailData.getRowNumber(), e.getMessage());
                     if (verbose) {
