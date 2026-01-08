@@ -21,6 +21,7 @@ import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.docx4j.Docx4jProperties;
+import org.docx4j.fonts.PhysicalFonts;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,14 +58,15 @@ class DryRunIntegrationTest {
     @BeforeAll
     static void configureDocx4j() {
         // Configure docx4j to avoid font scanning issues on different systems
-        // These properties must be set before any docx4j font-related classes are loaded
+        // These settings must be applied before any docx4j Mapper is instantiated
 
-        // Ignore font directories to prevent scanning problematic system fonts
-        System.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", "true");
+        // Set a restrictive regex to limit font discovery to only common safe fonts
+        // This excludes emoji fonts and other fonts with complex glyph tables that can cause issues
+        // The regex must be set BEFORE any Mapper is created (which triggers font discovery)
+        PhysicalFonts.setRegex(".*(calibri|cour|arial|times|comic|georgia|impact|tahoma|trebuc|verdana|symbol|webdings|wingding|liberation|dejavu|freesans|freeserif|freemono).*");
+
+        // Additional properties to help avoid font issues
         Docx4jProperties.setProperty("docx4j.fonts.fop.util.autodetect.FontFileFinder.fontDirFinder.ignore", true);
-
-        // Use BestMatchingMapper instead of IdentityPlusMapper to avoid font discovery issues
-        Docx4jProperties.setProperty("docx4j.fonts.mapper", "org.docx4j.fonts.BestMatchingMapper");
     }
 
     @BeforeEach
