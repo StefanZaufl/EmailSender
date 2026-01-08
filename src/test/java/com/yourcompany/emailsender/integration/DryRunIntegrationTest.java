@@ -112,6 +112,16 @@ class DryRunIntegrationTest {
         assertTrue(metaContent.contains("john.doe@example.com"));
         assertTrue(metaContent.contains("Test Subject for John Doe"));
 
+        // Verify PDF file contents - all should contain "PDF content"
+        String pdfContent1 = Files.readString(outputDir.resolve("row2_john.doe@example.com_attachment.pdf"));
+        assertEquals("PDF content", pdfContent1, "PDF content for John Doe should match");
+
+        String pdfContent2 = Files.readString(outputDir.resolve("row3_jane.smith@example.com_attachment.pdf"));
+        assertEquals("PDF content", pdfContent2, "PDF content for Jane Smith should match");
+
+        String pdfContent3 = Files.readString(outputDir.resolve("row5_alice.johnson@example.com_attachment.pdf"));
+        assertEquals("PDF content", pdfContent3, "PDF content for Alice Johnson should match");
+
         // Verify Bob Wilson (SendEmail=No) was not processed
         assertFalse(Files.exists(outputDir.resolve("row4_bob.wilson@example.com_body.html")));
     }
@@ -168,6 +178,15 @@ class DryRunIntegrationTest {
         String metaContent = Files.readString(outputDir.resolve("row4_excel.user3@example.com_meta.txt"));
         assertTrue(metaContent.contains("excel.user3@example.com"));
         assertTrue(metaContent.contains("Excel Report for Excel User Three"));
+
+        // Verify PDF file contents - each should contain personalized content with email address
+        String pdfContent1 = Files.readString(outputDir.resolve("row2_excel.user1@example.com_attachment.pdf"));
+        assertEquals("PDF for excel.user1@example.com", pdfContent1,
+                "PDF content for Excel User One should contain correct email");
+
+        String pdfContent2 = Files.readString(outputDir.resolve("row4_excel.user3@example.com_attachment.pdf"));
+        assertEquals("PDF for excel.user3@example.com", pdfContent2,
+                "PDF content for Excel User Three should contain correct email");
 
         // Verify user2 (SendEmail=No) was not processed
         assertFalse(Files.exists(outputDir.resolve("row3_excel.user2@example.com_body.html")));
