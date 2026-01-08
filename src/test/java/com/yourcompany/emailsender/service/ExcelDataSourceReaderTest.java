@@ -301,8 +301,8 @@ class ExcelDataSourceReaderTest {
 
         // Assert
         assertEquals(2, result.size());
-        assertEquals(2, result.get(0).getRowNumber()); // Jane is on row 2 (0-based index 1, displayed as row 2)
-        assertEquals(4, result.get(1).getRowNumber()); // Alice is on row 4
+        assertEquals(3, result.get(0).getRowNumber()); // Jane is on Excel row 3 (header=row 1, first data=row 2)
+        assertEquals(5, result.get(1).getRowNumber()); // Alice is on Excel row 5
     }
 
     private Path createTestExcelFile(String[] headers, Object[][] data) throws IOException {
