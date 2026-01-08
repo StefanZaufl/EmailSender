@@ -9,6 +9,7 @@ import com.microsoft.graph.models.Message;
 import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
+import com.microsoft.kiota.ApiException;
 import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
@@ -17,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -43,6 +43,7 @@ public class EmailService {
 
     /**
      * Sends a personalized email with PDF attachment to the recipient specified in the EmailData.
+     * Includes retry logic with exponential backoff for handling throttling (HTTP 429) errors.
      *
      * @param emailData the data for the email to send
      */
@@ -58,20 +59,100 @@ public class EmailService {
             // Build the email message
             Message message = createMessage(emailData.getRecipientEmail(), subject, htmlBody, pdfAttachment);
 
-            // Send via Microsoft Graph
-            SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
-            sendMailRequest.setMessage(message);
-            sendMailRequest.setSaveToSentItems(true);
-
-            String senderEmail = appConfig.getMicrosoft().getSenderEmail();
-            graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
+            // Send via Microsoft Graph with retry logic
+            sendWithRetry(emailData, message);
 
             logger.info("Email sent successfully to: {} (row {})", emailData.getRecipientEmail(), emailData.getRowNumber());
 
+        } catch (EmailSenderException e) {
+            throw e;
         } catch (Exception e) {
             throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
                     " (row " + emailData.getRowNumber() + ")", e);
         }
+    }
+
+    /**
+     * Sends the email with retry logic for handling throttling (HTTP 429) errors.
+     * Uses exponential backoff between retries.
+     */
+    private void sendWithRetry(EmailData emailData, Message message) {
+        AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
+        int maxRetries = throttling.isEnabled() ? throttling.getMaxRetries() : 0;
+        long delayMs = throttling.getInitialRetryDelayMs();
+
+        SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
+        sendMailRequest.setMessage(message);
+        sendMailRequest.setSaveToSentItems(true);
+
+        String senderEmail = appConfig.getMicrosoft().getSenderEmail();
+        Exception lastException = null;
+
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+                graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
+                return; // Success
+            } catch (ApiException e) {
+                lastException = e;
+                int statusCode = e.getResponseStatusCode();
+
+                if (statusCode == 429 && attempt < maxRetries) {
+                    // Throttled - retry with exponential backoff
+                    long retryAfterMs = parseRetryAfter(e, delayMs);
+                    logger.warn("Throttled (HTTP 429) sending to {} - retrying in {}ms (attempt {}/{})",
+                            emailData.getRecipientEmail(), retryAfterMs, attempt + 1, maxRetries);
+
+                    try {
+                        Thread.sleep(retryAfterMs);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new EmailSenderException("Email sending interrupted during retry", ie);
+                    }
+
+                    // Exponential backoff for next retry
+                    delayMs = delayMs * 2;
+                } else if (statusCode == 429) {
+                    // Max retries exceeded
+                    throw new EmailSenderException("Max retries exceeded for email to " +
+                            emailData.getRecipientEmail() + " (row " + emailData.getRowNumber() +
+                            ") - still being throttled after " + maxRetries + " attempts", e);
+                } else {
+                    // Non-throttling error - don't retry
+                    throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+                            " (row " + emailData.getRowNumber() + ") - HTTP " + statusCode, e);
+                }
+            } catch (Exception e) {
+                // Non-API exception - don't retry
+                throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+                        " (row " + emailData.getRowNumber() + ")", e);
+            }
+        }
+
+        // Should not reach here, but just in case
+        throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+                " (row " + emailData.getRowNumber() + ")", lastException);
+    }
+
+    /**
+     * Parses the Retry-After header from the API exception.
+     * Returns the suggested wait time in milliseconds, or the default delay if not available.
+     */
+    private long parseRetryAfter(ApiException e, long defaultDelayMs) {
+        // Try to extract Retry-After from response headers
+        var headers = e.getResponseHeaders();
+        if (headers != null) {
+            var retryAfterValues = headers.get("Retry-After");
+            if (retryAfterValues != null && !retryAfterValues.isEmpty()) {
+                try {
+                    // Retry-After can be in seconds
+                    int seconds = Integer.parseInt(retryAfterValues.iterator().next());
+                    return seconds * 1000L;
+                } catch (NumberFormatException nfe) {
+                    logger.debug("Could not parse Retry-After header: {}", retryAfterValues);
+                }
+            }
+        }
+        return defaultDelayMs;
     }
 
     /**

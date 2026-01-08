@@ -33,6 +33,9 @@ public class AppConfig {
     @NotNull
     private EmailConfig email;
 
+    @Valid
+    private ThrottlingConfig throttling = new ThrottlingConfig();
+
     private Map<String, String> fieldMappings = new HashMap<>();
 
     public MicrosoftConfig getMicrosoft() {
@@ -65,6 +68,14 @@ public class AppConfig {
 
     public void setEmail(EmailConfig email) {
         this.email = email;
+    }
+
+    public ThrottlingConfig getThrottling() {
+        return throttling;
+    }
+
+    public void setThrottling(ThrottlingConfig throttling) {
+        this.throttling = throttling != null ? throttling : new ThrottlingConfig();
     }
 
     public Map<String, String> getFieldMappings() {
@@ -248,6 +259,80 @@ public class AppConfig {
 
         public void setAttachmentFilename(String attachmentFilename) {
             this.attachmentFilename = attachmentFilename;
+        }
+    }
+
+    /**
+     * Throttling configuration to prevent email rejection due to rate limits.
+     * Based on Microsoft Graph API and Exchange Online limits:
+     * - Exchange Online: 30 emails per minute (the actual bottleneck)
+     * - Graph API: 10,000 requests per 10 minutes
+     * - Max 4 concurrent requests
+     */
+    public static class ThrottlingConfig {
+
+        /**
+         * Whether throttling is enabled. Default: true
+         */
+        private boolean enabled = true;
+
+        /**
+         * Maximum emails per minute. Default: 30 (Exchange Online limit)
+         */
+        private int emailsPerMinute = 30;
+
+        /**
+         * Number of retry attempts when throttled (HTTP 429). Default: 3
+         */
+        private int maxRetries = 3;
+
+        /**
+         * Initial delay in milliseconds before first retry. Default: 2000 (2 seconds)
+         * Subsequent retries use exponential backoff (2x multiplier)
+         */
+        private long initialRetryDelayMs = 2000;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getEmailsPerMinute() {
+            return emailsPerMinute;
+        }
+
+        public void setEmailsPerMinute(int emailsPerMinute) {
+            this.emailsPerMinute = emailsPerMinute;
+        }
+
+        public int getMaxRetries() {
+            return maxRetries;
+        }
+
+        public void setMaxRetries(int maxRetries) {
+            this.maxRetries = maxRetries;
+        }
+
+        public long getInitialRetryDelayMs() {
+            return initialRetryDelayMs;
+        }
+
+        public void setInitialRetryDelayMs(long initialRetryDelayMs) {
+            this.initialRetryDelayMs = initialRetryDelayMs;
+        }
+
+        /**
+         * Calculate delay between emails in milliseconds based on emails per minute.
+         * @return delay in milliseconds
+         */
+        public long getDelayBetweenEmailsMs() {
+            if (emailsPerMinute <= 0) {
+                return 0;
+            }
+            return 60_000L / emailsPerMinute;
         }
     }
 }

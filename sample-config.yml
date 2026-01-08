@@ -41,6 +41,23 @@ email-sender:
     # Filename for the PDF attachment
     attachment-filename: "report.pdf"
 
+  # Throttling configuration to prevent email rejection due to rate limits
+  # Microsoft Graph API / Exchange Online limits:
+  # - Exchange Online: 30 emails per minute (the actual bottleneck)
+  # - Graph API: 10,000 requests per 10 minutes
+  # - Max 4 concurrent requests
+  throttling:
+    # Enable/disable throttling (default: true)
+    enabled: true
+    # Maximum emails per minute - default is 30 (Exchange Online limit)
+    # Lower this if you experience throttling issues
+    emails-per-minute: 30
+    # Number of retry attempts when throttled (HTTP 429) - default: 3
+    max-retries: 3
+    # Initial delay before first retry in milliseconds - default: 2000 (2 seconds)
+    # Subsequent retries use exponential backoff (2x multiplier)
+    initial-retry-delay-ms: 2000
+
   # Optional: Map placeholders to different column names in your data source
   # Useful when your column names don't match placeholder names
   field-mappings:
