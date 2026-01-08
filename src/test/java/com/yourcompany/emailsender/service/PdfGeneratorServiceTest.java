@@ -27,7 +27,6 @@ class PdfGeneratorServiceTest {
 
     private AppConfig appConfig;
     private static boolean pdfGenerationSupported = false;
-    private static boolean pdfSupportChecked = false;
 
     @TempDir
     Path tempDir;
@@ -52,10 +51,9 @@ class PdfGeneratorServiceTest {
             pdfGenerationSupported = pdfOut.size() > 0;
             logger.info("PDF generation support check: PASSED");
         } catch (AssertionError | Exception e) {
-            logger.warn("PDF generation not supported in this environment: {}", e.getMessage());
+            logger.warn("PDF generation not supported in this environment", e);
             pdfGenerationSupported = false;
         }
-        pdfSupportChecked = true;
     }
 
     @BeforeEach
@@ -69,7 +67,7 @@ class PdfGeneratorServiceTest {
                 "PDF generation not supported in this environment (font configuration issue)");
 
         // Arrange
-        Path docxPath = createSimpleDocxTemplate("Hello World");
+        Path docxPath = createSimpleDocxTemplate();
         appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
@@ -128,7 +126,7 @@ class PdfGeneratorServiceTest {
     @Test
     void generateDocx_validTemplate_returnsDocxBytes() throws Exception {
         // Arrange
-        Path docxPath = createSimpleDocxTemplate("Hello World");
+        Path docxPath = createSimpleDocxTemplate();
         appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
@@ -267,12 +265,12 @@ class PdfGeneratorServiceTest {
         assertTrue(result2.length > 0);
     }
 
-    private Path createSimpleDocxTemplate(String content) throws Exception {
+    private Path createSimpleDocxTemplate() throws Exception {
         Path docxPath = tempDir.resolve("simple-template.docx");
 
         WordprocessingMLPackage wordPackage = WordprocessingMLPackage.createPackage();
         MainDocumentPart mainPart = wordPackage.getMainDocumentPart();
-        mainPart.addParagraphOfText(content);
+        mainPart.addParagraphOfText("Hello World");
 
         wordPackage.save(new File(docxPath.toString()));
 
