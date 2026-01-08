@@ -6,19 +6,20 @@ import com.yourcompany.emailsender.service.CsvDataSourceReader;
 import com.yourcompany.emailsender.service.DataSourceReader;
 import com.yourcompany.emailsender.service.EmailService;
 import com.yourcompany.emailsender.service.ExcelDataSourceReader;
+import com.yourcompany.emailsender.service.PdfGeneratorService;
+import com.yourcompany.emailsender.service.TemplateService;
 import com.yourcompany.emailsender.service.processor.DryRunEmailProcessor;
 import com.yourcompany.emailsender.service.processor.LiveEmailProcessor;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.pdmodel.PDDocument;
-import org.apache.pdfbox.pdmodel.PDPage;
-import org.apache.pdfbox.pdmodel.PDPageContentStream;
-import org.apache.pdfbox.pdmodel.font.PDType1Font;
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
+import org.apache.poi.xwpf.usermodel.XWPFRun;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -26,7 +27,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import picocli.CommandLine;
 
-import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -34,17 +34,13 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for dry run mode with CSV and Excel data sources.
- * These tests verify the complete flow from data loading through output file generation.
+ * These tests verify the complete flow from data loading through output file generation
+ * using real service implementations (no mocks).
  */
 class DryRunIntegrationTest {
-
-    @Mock
-    private EmailService emailService;
 
     @Mock
     private LiveEmailProcessor liveEmailProcessor;
@@ -78,18 +74,10 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("csv", csvFile, emailTemplate, attachmentTemplate);
 
-        // Mock EmailService to return prepared content with real PDF
-        when(emailService.prepareEmail(any())).thenAnswer(invocation -> {
-            var emailData = invocation.getArgument(0, com.yourcompany.emailsender.model.EmailData.class);
-            String pdfText = "Report for " + emailData.getField("FullName") + " at " + emailData.getField("CompanyName");
-            return new EmailService.EmailContent(
-                    emailData.getRecipientEmail(),
-                    "Test Subject for " + emailData.getField("FullName"),
-                    "<html><body>Hello " + emailData.getField("FullName") + "</body></html>",
-                    createPdfWithText(pdfText),
-                    emailData.getRowNumber()
-            );
-        });
+        // Create real services (no mocks)
+        TemplateService templateService = new TemplateService(appConfig);
+        PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
@@ -119,19 +107,24 @@ class DryRunIntegrationTest {
         // Verify content of one of the meta files
         String metaContent = Files.readString(outputDir.resolve("row2_john.doe@example.com_meta.txt"));
         assertTrue(metaContent.contains("john.doe@example.com"));
-        assertTrue(metaContent.contains("Test Subject for John Doe"));
+        assertTrue(metaContent.contains("Report for John Doe"));
+
+        // Verify HTML body content contains personalized data
+        String htmlContent = Files.readString(outputDir.resolve("row2_john.doe@example.com_body.html"));
+        assertTrue(htmlContent.contains("John Doe"), "HTML should contain recipient name");
+        assertTrue(htmlContent.contains("Acme Corp"), "HTML should contain company name");
 
         // Verify PDF file contents using PDFBox
         String pdfText1 = extractPdfText(outputDir.resolve("row2_john.doe@example.com_attachment.pdf"));
-        assertTrue(pdfText1.contains("Report for John Doe"), "PDF should contain recipient name");
+        assertTrue(pdfText1.contains("John Doe"), "PDF should contain recipient name");
         assertTrue(pdfText1.contains("Acme Corp"), "PDF should contain company name");
 
         String pdfText2 = extractPdfText(outputDir.resolve("row3_jane.smith@example.com_attachment.pdf"));
-        assertTrue(pdfText2.contains("Report for Jane Smith"), "PDF should contain recipient name");
+        assertTrue(pdfText2.contains("Jane Smith"), "PDF should contain recipient name");
         assertTrue(pdfText2.contains("Tech Solutions"), "PDF should contain company name");
 
         String pdfText3 = extractPdfText(outputDir.resolve("row5_alice.johnson@example.com_attachment.pdf"));
-        assertTrue(pdfText3.contains("Report for Alice Johnson"), "PDF should contain recipient name");
+        assertTrue(pdfText3.contains("Alice Johnson"), "PDF should contain recipient name");
         assertTrue(pdfText3.contains("StartupXYZ"), "PDF should contain company name");
 
         // Verify Bob Wilson (SendEmail=No) was not processed
@@ -147,21 +140,10 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("excel", excelFile, emailTemplate, attachmentTemplate);
 
-        // Mock EmailService to return prepared content with real PDF
-        when(emailService.prepareEmail(any())).thenAnswer(invocation -> {
-            var emailData = invocation.getArgument(0, com.yourcompany.emailsender.model.EmailData.class);
-            String pdfText = "Excel Report for " + emailData.getField("FullName")
-                    + " - Company: " + emailData.getField("CompanyName")
-                    + " - Email: " + emailData.getRecipientEmail();
-            return new EmailService.EmailContent(
-                    emailData.getRecipientEmail(),
-                    "Excel Report for " + emailData.getField("FullName"),
-                    "<html><body>Dear " + emailData.getField("FullName") + ", your report from "
-                            + emailData.getField("CompanyName") + "</body></html>",
-                    createPdfWithText(pdfText),
-                    emailData.getRowNumber()
-            );
-        });
+        // Create real services (no mocks)
+        TemplateService templateService = new TemplateService(appConfig);
+        PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
@@ -186,24 +168,22 @@ class DryRunIntegrationTest {
 
         // Verify HTML body content
         String htmlContent = Files.readString(outputDir.resolve("row2_excel.user1@example.com_body.html"));
-        assertTrue(htmlContent.contains("Excel User One"));
-        assertTrue(htmlContent.contains("Excel Corp"));
+        assertTrue(htmlContent.contains("Excel User One"), "HTML should contain recipient name");
+        assertTrue(htmlContent.contains("Excel Corp"), "HTML should contain company name");
 
         // Verify meta file content
         String metaContent = Files.readString(outputDir.resolve("row4_excel.user3@example.com_meta.txt"));
         assertTrue(metaContent.contains("excel.user3@example.com"));
-        assertTrue(metaContent.contains("Excel Report for Excel User Three"));
+        assertTrue(metaContent.contains("Report for Excel User Three"));
 
         // Verify PDF file contents using PDFBox
         String pdfText1 = extractPdfText(outputDir.resolve("row2_excel.user1@example.com_attachment.pdf"));
-        assertTrue(pdfText1.contains("Excel Report for Excel User One"), "PDF should contain report title");
+        assertTrue(pdfText1.contains("Excel User One"), "PDF should contain recipient name");
         assertTrue(pdfText1.contains("Excel Corp"), "PDF should contain company name");
-        assertTrue(pdfText1.contains("excel.user1@example.com"), "PDF should contain email address");
 
         String pdfText2 = extractPdfText(outputDir.resolve("row4_excel.user3@example.com_attachment.pdf"));
-        assertTrue(pdfText2.contains("Excel Report for Excel User Three"), "PDF should contain report title");
+        assertTrue(pdfText2.contains("Excel User Three"), "PDF should contain recipient name");
         assertTrue(pdfText2.contains("Sheet LLC"), "PDF should contain company name");
-        assertTrue(pdfText2.contains("excel.user3@example.com"), "PDF should contain email address");
 
         // Verify user2 (SendEmail=No) was not processed
         assertFalse(Files.exists(outputDir.resolve("row3_excel.user2@example.com_body.html")));
@@ -274,6 +254,7 @@ class DryRunIntegrationTest {
                 <body>
                     <p>Dear <span th:text="${FullName}">Name</span>,</p>
                     <p>Your report for <span th:text="${CompanyName}">Company</span> is attached.</p>
+                    <p>Report Date: <span th:text="${ReportDate}">Date</span></p>
                 </body>
                 </html>
                 """;
@@ -281,11 +262,46 @@ class DryRunIntegrationTest {
         return templateFile;
     }
 
+    /**
+     * Creates a valid DOCX template file with placeholders for personalization.
+     * Uses Apache POI to create a proper Word document.
+     */
     private Path createAttachmentTemplate() throws IOException {
-        // Create a minimal valid DOCX file for testing
-        // In this test we mock EmailService, so we just need a placeholder file
         Path templateFile = templateDir.resolve("attachment-template.docx");
-        Files.write(templateFile, "placeholder".getBytes());
+
+        try (XWPFDocument document = new XWPFDocument()) {
+            // Title paragraph
+            XWPFParagraph titleParagraph = document.createParagraph();
+            XWPFRun titleRun = titleParagraph.createRun();
+            titleRun.setText("Monthly Report");
+            titleRun.setBold(true);
+            titleRun.setFontSize(16);
+
+            // Recipient paragraph with placeholder
+            XWPFParagraph recipientParagraph = document.createParagraph();
+            XWPFRun recipientRun = recipientParagraph.createRun();
+            recipientRun.setText("Prepared for: {{FullName}}");
+
+            // Company paragraph with placeholder
+            XWPFParagraph companyParagraph = document.createParagraph();
+            XWPFRun companyRun = companyParagraph.createRun();
+            companyRun.setText("Company: {{CompanyName}}");
+
+            // Date paragraph with placeholder
+            XWPFParagraph dateParagraph = document.createParagraph();
+            XWPFRun dateRun = dateParagraph.createRun();
+            dateRun.setText("Report Date: {{ReportDate}}");
+
+            // Content paragraph
+            XWPFParagraph contentParagraph = document.createParagraph();
+            XWPFRun contentRun = contentParagraph.createRun();
+            contentRun.setText("This report contains your monthly summary.");
+
+            try (FileOutputStream fos = new FileOutputStream(templateFile.toFile())) {
+                document.write(fos);
+            }
+        }
+
         return templateFile;
     }
 
@@ -328,32 +344,6 @@ class DryRunIntegrationTest {
         appConfig.setThrottling(throttlingConfig);
 
         return appConfig;
-    }
-
-    /**
-     * Creates a PDF document containing the specified text.
-     *
-     * @param text the text to include in the PDF
-     * @return the PDF as a byte array
-     */
-    private byte[] createPdfWithText(String text) throws IOException {
-        try (PDDocument document = new PDDocument();
-             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-
-            PDPage page = new PDPage();
-            document.addPage(page);
-
-            try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
-                contentStream.beginText();
-                contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
-                contentStream.newLineAtOffset(50, 700);
-                contentStream.showText(text);
-                contentStream.endText();
-            }
-
-            document.save(outputStream);
-            return outputStream.toByteArray();
-        }
     }
 
     /**
