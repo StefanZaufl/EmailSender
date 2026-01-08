@@ -8,6 +8,13 @@ import com.yourcompany.emailsender.service.EmailService;
 import com.yourcompany.emailsender.service.ExcelDataSourceReader;
 import com.yourcompany.emailsender.service.processor.DryRunEmailProcessor;
 import com.yourcompany.emailsender.service.processor.LiveEmailProcessor;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.font.PDType1Font;
+import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
+import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -19,6 +26,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import picocli.CommandLine;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -70,14 +78,15 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("csv", csvFile, emailTemplate, attachmentTemplate);
 
-        // Mock EmailService to return prepared content
+        // Mock EmailService to return prepared content with real PDF
         when(emailService.prepareEmail(any())).thenAnswer(invocation -> {
             var emailData = invocation.getArgument(0, com.yourcompany.emailsender.model.EmailData.class);
+            String pdfText = "Report for " + emailData.getField("FullName") + " at " + emailData.getField("CompanyName");
             return new EmailService.EmailContent(
                     emailData.getRecipientEmail(),
                     "Test Subject for " + emailData.getField("FullName"),
                     "<html><body>Hello " + emailData.getField("FullName") + "</body></html>",
-                    "PDF content".getBytes(),
+                    createPdfWithText(pdfText),
                     emailData.getRowNumber()
             );
         });
@@ -112,15 +121,18 @@ class DryRunIntegrationTest {
         assertTrue(metaContent.contains("john.doe@example.com"));
         assertTrue(metaContent.contains("Test Subject for John Doe"));
 
-        // Verify PDF file contents - all should contain "PDF content"
-        String pdfContent1 = Files.readString(outputDir.resolve("row2_john.doe@example.com_attachment.pdf"));
-        assertEquals("PDF content", pdfContent1, "PDF content for John Doe should match");
+        // Verify PDF file contents using PDFBox
+        String pdfText1 = extractPdfText(outputDir.resolve("row2_john.doe@example.com_attachment.pdf"));
+        assertTrue(pdfText1.contains("Report for John Doe"), "PDF should contain recipient name");
+        assertTrue(pdfText1.contains("Acme Corp"), "PDF should contain company name");
 
-        String pdfContent2 = Files.readString(outputDir.resolve("row3_jane.smith@example.com_attachment.pdf"));
-        assertEquals("PDF content", pdfContent2, "PDF content for Jane Smith should match");
+        String pdfText2 = extractPdfText(outputDir.resolve("row3_jane.smith@example.com_attachment.pdf"));
+        assertTrue(pdfText2.contains("Report for Jane Smith"), "PDF should contain recipient name");
+        assertTrue(pdfText2.contains("Tech Solutions"), "PDF should contain company name");
 
-        String pdfContent3 = Files.readString(outputDir.resolve("row5_alice.johnson@example.com_attachment.pdf"));
-        assertEquals("PDF content", pdfContent3, "PDF content for Alice Johnson should match");
+        String pdfText3 = extractPdfText(outputDir.resolve("row5_alice.johnson@example.com_attachment.pdf"));
+        assertTrue(pdfText3.contains("Report for Alice Johnson"), "PDF should contain recipient name");
+        assertTrue(pdfText3.contains("StartupXYZ"), "PDF should contain company name");
 
         // Verify Bob Wilson (SendEmail=No) was not processed
         assertFalse(Files.exists(outputDir.resolve("row4_bob.wilson@example.com_body.html")));
@@ -135,15 +147,18 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("excel", excelFile, emailTemplate, attachmentTemplate);
 
-        // Mock EmailService to return prepared content
+        // Mock EmailService to return prepared content with real PDF
         when(emailService.prepareEmail(any())).thenAnswer(invocation -> {
             var emailData = invocation.getArgument(0, com.yourcompany.emailsender.model.EmailData.class);
+            String pdfText = "Excel Report for " + emailData.getField("FullName")
+                    + " - Company: " + emailData.getField("CompanyName")
+                    + " - Email: " + emailData.getRecipientEmail();
             return new EmailService.EmailContent(
                     emailData.getRecipientEmail(),
                     "Excel Report for " + emailData.getField("FullName"),
                     "<html><body>Dear " + emailData.getField("FullName") + ", your report from "
                             + emailData.getField("CompanyName") + "</body></html>",
-                    ("PDF for " + emailData.getRecipientEmail()).getBytes(),
+                    createPdfWithText(pdfText),
                     emailData.getRowNumber()
             );
         });
@@ -179,14 +194,16 @@ class DryRunIntegrationTest {
         assertTrue(metaContent.contains("excel.user3@example.com"));
         assertTrue(metaContent.contains("Excel Report for Excel User Three"));
 
-        // Verify PDF file contents - each should contain personalized content with email address
-        String pdfContent1 = Files.readString(outputDir.resolve("row2_excel.user1@example.com_attachment.pdf"));
-        assertEquals("PDF for excel.user1@example.com", pdfContent1,
-                "PDF content for Excel User One should contain correct email");
+        // Verify PDF file contents using PDFBox
+        String pdfText1 = extractPdfText(outputDir.resolve("row2_excel.user1@example.com_attachment.pdf"));
+        assertTrue(pdfText1.contains("Excel Report for Excel User One"), "PDF should contain report title");
+        assertTrue(pdfText1.contains("Excel Corp"), "PDF should contain company name");
+        assertTrue(pdfText1.contains("excel.user1@example.com"), "PDF should contain email address");
 
-        String pdfContent2 = Files.readString(outputDir.resolve("row4_excel.user3@example.com_attachment.pdf"));
-        assertEquals("PDF for excel.user3@example.com", pdfContent2,
-                "PDF content for Excel User Three should contain correct email");
+        String pdfText2 = extractPdfText(outputDir.resolve("row4_excel.user3@example.com_attachment.pdf"));
+        assertTrue(pdfText2.contains("Excel Report for Excel User Three"), "PDF should contain report title");
+        assertTrue(pdfText2.contains("Sheet LLC"), "PDF should contain company name");
+        assertTrue(pdfText2.contains("excel.user3@example.com"), "PDF should contain email address");
 
         // Verify user2 (SendEmail=No) was not processed
         assertFalse(Files.exists(outputDir.resolve("row3_excel.user2@example.com_body.html")));
@@ -311,5 +328,44 @@ class DryRunIntegrationTest {
         appConfig.setThrottling(throttlingConfig);
 
         return appConfig;
+    }
+
+    /**
+     * Creates a PDF document containing the specified text.
+     *
+     * @param text the text to include in the PDF
+     * @return the PDF as a byte array
+     */
+    private byte[] createPdfWithText(String text) throws IOException {
+        try (PDDocument document = new PDDocument();
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+
+            PDPage page = new PDPage();
+            document.addPage(page);
+
+            try (PDPageContentStream contentStream = new PDPageContentStream(document, page)) {
+                contentStream.beginText();
+                contentStream.setFont(new PDType1Font(Standard14Fonts.FontName.HELVETICA), 12);
+                contentStream.newLineAtOffset(50, 700);
+                contentStream.showText(text);
+                contentStream.endText();
+            }
+
+            document.save(outputStream);
+            return outputStream.toByteArray();
+        }
+    }
+
+    /**
+     * Extracts text content from a PDF file using PDFBox.
+     *
+     * @param pdfPath the path to the PDF file
+     * @return the extracted text content
+     */
+    private String extractPdfText(Path pdfPath) throws IOException {
+        try (PDDocument document = Loader.loadPDF(pdfPath.toFile())) {
+            PDFTextStripper stripper = new PDFTextStripper();
+            return stripper.getText(document);
+        }
     }
 }
