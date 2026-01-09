@@ -10,6 +10,7 @@ A Java CLI tool that sends personalized emails with PDF attachments. The tool re
   - Word document (.docx) attachments with placeholder replacement
   - Automatic Word to PDF conversion
 - **Microsoft 365 Integration**: Send emails via Microsoft Graph API with OAuth2 client credentials flow
+- **Group Mailbox Support**: Send from Microsoft 365 Group mailboxes with automatic sender type detection
 - **Flexible Filtering**: Configure which rows to process based on column values
 - **Field Mappings**: Map template placeholders to different column names
 - **Dry Run Mode**: Test processing without sending emails
@@ -60,9 +61,13 @@ After registration, you'll be on the application's Overview page. Note down:
 2. Click **+ Add a permission**
 3. Select **Microsoft Graph**
 4. Choose **Application permissions** (not Delegated)
-5. Search for and select:
+5. Search for and select the following permissions:
    - `Mail.Send` - Required to send emails on behalf of users
+   - `User.Read.All` - Required to verify user mailboxes (for auto-detection)
+   - `Group.ReadWrite.All` - Required to send emails from group mailboxes
 6. Click **Add permissions**
+
+> **Note**: If you only send from user mailboxes and set `sender-is-group: false` in your config, you only need `Mail.Send`. The additional permissions are required for group mailbox support and auto-detection.
 
 ### Step 5: Grant Admin Consent
 
@@ -81,8 +86,14 @@ The `sender-email` in your configuration must be a valid mailbox in your Microso
 
 - A user mailbox (e.g., `noreply@yourcompany.com`)
 - A shared mailbox (e.g., `reports@yourcompany.com`)
+- A Microsoft 365 Group mailbox (e.g., `team@yourcompany.com`)
 
-The application will send emails "on behalf of" this mailbox using the `Mail.Send` permission.
+**Sender Type Detection**: The application automatically detects whether the sender email belongs to a user or a group by querying the Microsoft Graph API at startup. You can also explicitly set this via the `sender-is-group` configuration option.
+
+| Sender Type | API Used | Permission Required |
+|-------------|----------|---------------------|
+| User/Shared Mailbox | `POST /users/{id}/sendMail` | `Mail.Send` |
+| Group Mailbox | `POST /groups/{id}/conversations` | `Group.ReadWrite.All` |
 
 ### Configuration Example
 
@@ -95,6 +106,20 @@ email-sender:
     client-id: 87654321-4321-4321-4321-cba987654321
     client-secret: your-client-secret-value
     sender-email: noreply@yourcompany.com
+    # Optional: explicitly set sender type (auto-detected if omitted)
+    # sender-is-group: false
+```
+
+For group mailboxes:
+
+```yaml
+email-sender:
+  microsoft:
+    tenant-id: 12345678-1234-1234-1234-123456789abc
+    client-id: 87654321-4321-4321-4321-cba987654321
+    client-secret: your-client-secret-value
+    sender-email: team@yourcompany.com
+    sender-is-group: true  # Optional: auto-detected if omitted
 ```
 
 Or using environment variables for security:
@@ -120,8 +145,11 @@ email-sender:
 |-------|-------|----------|
 | `AADSTS7000215: Invalid client secret` | Client secret is incorrect or expired | Create a new client secret |
 | `AADSTS700016: Application not found` | Wrong client ID or tenant ID | Verify the IDs in Azure portal |
-| `Authorization_RequestDenied` | Missing admin consent | Grant admin consent for Mail.Send |
+| `Authorization_RequestDenied` | Missing admin consent | Grant admin consent for required permissions |
 | `ErrorAccessDenied` | Sender email doesn't exist or no permission | Verify the sender mailbox exists |
+| `The requested user 'x@y.com' is invalid` | Sender is a group but detected as user | Set `sender-is-group: true` in config |
+| `HTTP 403` on group conversations | Missing Group.ReadWrite.All permission | Add and grant consent for Group.ReadWrite.All |
+| `Sender email is neither a valid user nor group` | Email doesn't exist in tenant | Verify the sender email address |
 
 ## Build
 
@@ -142,6 +170,7 @@ email-sender:
     client-id: your-azure-client-id
     client-secret: your-azure-client-secret
     sender-email: sender@yourcompany.com
+    # sender-is-group: false  # Optional: auto-detected if omitted
 
   datasource:
     type: excel  # or 'csv'
@@ -296,6 +325,7 @@ Same structure as CSV, with column headers in the first row. Supports `.xlsx` an
     │   │       ├── EmailService.java
     │   │       ├── ExcelDataSourceReader.java
     │   │       ├── PdfGeneratorService.java
+    │   │       ├── SenderTypeResolver.java
     │   │       └── TemplateService.java
     │   └── resources/
     │       └── application.yml

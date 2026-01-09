@@ -21,8 +21,8 @@
         <picocli.version>4.7.6</picocli.version>
         <poi.version>5.5.1</poi.version>
         <docx4j.version>11.5.9</docx4j.version>
-        <microsoft-graph.version>6.23.0</microsoft-graph.version>
-        <azure-identity.version>1.14.2</azure-identity.version>
+        <microsoft-graph.version>6.60.0</microsoft-graph.version>
+        <azure-identity.version>1.15.0</azure-identity.version>
     </properties>
 
     <dependencyManagement>
