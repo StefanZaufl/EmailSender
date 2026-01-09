@@ -7,6 +7,7 @@ import com.yourcompany.emailsender.service.DataSourceReader;
 import com.yourcompany.emailsender.service.EmailService;
 import com.yourcompany.emailsender.service.ExcelDataSourceReader;
 import com.yourcompany.emailsender.service.PdfGeneratorService;
+import com.yourcompany.emailsender.service.SenderTypeResolver;
 import com.yourcompany.emailsender.service.TemplateService;
 import com.yourcompany.emailsender.service.processor.DryRunEmailProcessor;
 import com.yourcompany.emailsender.service.processor.LiveEmailProcessor;
@@ -37,6 +38,8 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Integration tests for dry run mode with CSV and Excel data sources.
@@ -47,6 +50,9 @@ class DryRunIntegrationTest {
 
     @Mock
     private LiveEmailProcessor liveEmailProcessor;
+
+    @Mock
+    private SenderTypeResolver senderTypeResolver;
 
     @TempDir
     Path tempDir;
@@ -91,10 +97,11 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("csv", csvFile, emailTemplate, attachmentTemplate);
 
-        // Create real services (no mocks)
+        // Create real services (no mocks except for SenderTypeResolver which is not used in dry-run)
         TemplateService templateService = new TemplateService(appConfig);
         PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
-        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService);
+        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
@@ -157,10 +164,11 @@ class DryRunIntegrationTest {
 
         AppConfig appConfig = createAppConfig("excel", excelFile, emailTemplate, attachmentTemplate);
 
-        // Create real services (no mocks)
+        // Create real services (no mocks except for SenderTypeResolver which is not used in dry-run)
         TemplateService templateService = new TemplateService(appConfig);
         PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
-        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService);
+        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);

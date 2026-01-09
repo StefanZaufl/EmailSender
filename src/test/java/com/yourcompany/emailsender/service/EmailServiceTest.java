@@ -1,5 +1,8 @@
 package com.yourcompany.emailsender.service;
 
+import com.microsoft.graph.groups.GroupsRequestBuilder;
+import com.microsoft.graph.groups.item.GroupItemRequestBuilder;
+import com.microsoft.graph.groups.item.conversations.ConversationsRequestBuilder;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
@@ -46,6 +49,18 @@ class EmailServiceTest {
     @Mock
     private SendMailRequestBuilder sendMailRequestBuilder;
 
+    @Mock
+    private SenderTypeResolver senderTypeResolver;
+
+    @Mock
+    private GroupsRequestBuilder groupsRequestBuilder;
+
+    @Mock
+    private GroupItemRequestBuilder groupItemRequestBuilder;
+
+    @Mock
+    private ConversationsRequestBuilder conversationsRequestBuilder;
+
     private AppConfig appConfig;
     private EmailService emailService;
 
@@ -54,17 +69,26 @@ class EmailServiceTest {
         MockitoAnnotations.openMocks(this);
         appConfig = createAppConfig();
 
-        // Set up mock chain for graph client
+        // Set up mock chain for graph client - user sending
         when(graphClient.users()).thenReturn(usersRequestBuilder);
         when(usersRequestBuilder.byUserId(anyString())).thenReturn(userItemRequestBuilder);
         when(userItemRequestBuilder.sendMail()).thenReturn(sendMailRequestBuilder);
+
+        // Set up mock chain for graph client - group sending
+        when(graphClient.groups()).thenReturn(groupsRequestBuilder);
+        when(groupsRequestBuilder.byGroupId(anyString())).thenReturn(groupItemRequestBuilder);
+        when(groupItemRequestBuilder.conversations()).thenReturn(conversationsRequestBuilder);
 
         // Set up template and PDF mocks
         when(templateService.processSubject(any())).thenReturn("Test Subject");
         when(templateService.processEmailBody(any())).thenReturn("<html><body>Test</body></html>");
         when(pdfGeneratorService.generatePdf(any())).thenReturn(new byte[]{1, 2, 3});
 
-        emailService = new EmailService(graphClient, appConfig, templateService, pdfGeneratorService);
+        // Default to user sender type
+        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        when(senderTypeResolver.getGroupId()).thenReturn(null);
+
+        emailService = new EmailService(graphClient, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
     }
 
     @Test
@@ -276,6 +300,98 @@ class EmailServiceTest {
         assertArrayEquals(new byte[]{4, 5, 6}, content.pdfAttachment());
         assertEquals(1, content.rowNumber());
     }
+
+    // ==================== Group Sender Tests ====================
+
+    @Test
+    void sendEmail_groupSender_usesConversationsApi() {
+        // Arrange
+        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
+        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        EmailData emailData = createEmailData();
+
+        // Act
+        emailService.sendEmail(emailData);
+
+        // Assert - should use group conversations API, not user sendMail
+        verify(conversationsRequestBuilder, times(1)).post(any());
+        verify(sendMailRequestBuilder, never()).post(any());
+    }
+
+    @Test
+    void sendEmail_groupSender_throttled429_retriesWithBackoff() {
+        // Arrange
+        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
+        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        EmailData emailData = createEmailData();
+        ApiException throttledException = createApiException(429);
+
+        // First call throws 429, second succeeds
+        doThrow(throttledException)
+                .doNothing()
+                .when(conversationsRequestBuilder).post(any());
+
+        // Act
+        long startTime = System.currentTimeMillis();
+        emailService.sendEmail(emailData);
+        long duration = System.currentTimeMillis() - startTime;
+
+        // Assert - should have retried once
+        verify(conversationsRequestBuilder, times(2)).post(any());
+        assertTrue(duration >= 40, "Should have waited for retry delay");
+    }
+
+    @Test
+    void sendEmail_groupSender_nonThrottlingError_doesNotRetry() {
+        // Arrange
+        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
+        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        EmailData emailData = createEmailData();
+        ApiException serverError = createApiException(500);
+
+        doThrow(serverError).when(conversationsRequestBuilder).post(any());
+
+        // Act & Assert
+        EmailSenderException exception = assertThrows(
+                EmailSenderException.class,
+                () -> emailService.sendEmail(emailData)
+        );
+
+        verify(conversationsRequestBuilder, times(1)).post(any());
+        assertTrue(exception.getMessage().contains("HTTP 500"));
+    }
+
+    @Test
+    void sendEmail_groupSenderWithNullGroupId_throwsException() {
+        // Arrange
+        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
+        when(senderTypeResolver.getGroupId()).thenReturn(null);
+        EmailData emailData = createEmailData();
+
+        // Act & Assert
+        EmailSenderException exception = assertThrows(
+                EmailSenderException.class,
+                () -> emailService.sendEmail(emailData)
+        );
+
+        assertTrue(exception.getMessage().contains("Group ID not resolved"));
+    }
+
+    @Test
+    void sendEmail_userSender_usesUserSendMailApi() {
+        // Arrange
+        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        EmailData emailData = createEmailData();
+
+        // Act
+        emailService.sendEmail(emailData);
+
+        // Assert - should use user sendMail API, not group conversations
+        verify(sendMailRequestBuilder, times(1)).post(any());
+        verify(conversationsRequestBuilder, never()).post(any());
+    }
+
+    // ==================== Helper Methods ====================
 
     private EmailData createEmailData() {
         Map<String, String> fields = new HashMap<>();
