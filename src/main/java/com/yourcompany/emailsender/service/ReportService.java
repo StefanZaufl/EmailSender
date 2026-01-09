@@ -85,7 +85,12 @@ public class ReportService {
             return;
         }
 
-        Path reportPath = Path.of(outputPath);
+        Path reportPath;
+        try {
+            reportPath = Path.of(outputPath);
+        } catch (java.nio.file.InvalidPathException e) {
+            throw new EmailSenderException("Invalid report path: " + outputPath + " - " + e.getMessage(), e);
+        }
 
         // Create parent directories if they don't exist
         try {
