@@ -68,8 +68,9 @@ class EmailServiceTest {
         when(pdfGeneratorService.generatePdf(any())).thenReturn(new byte[]{1, 2, 3});
 
         // Default to user sender type
-        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
-        when(senderTypeResolver.getGroupId()).thenReturn(null);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        when(senderTypeResolver.getSenderGroup()).thenReturn(null);
 
         emailService = new EmailService(graphClient, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
     }
@@ -287,25 +288,27 @@ class EmailServiceTest {
     // ==================== Group Sender Tests ====================
 
     @Test
-    void sendEmail_groupSender_usesUserSendMailWithSendingUser() {
+    void sendEmail_groupSender_usesUserSendMailWithSenderEmail() {
         // Arrange
-        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(true);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        when(senderTypeResolver.getSenderGroup()).thenReturn("group@example.com");
         EmailData emailData = createEmailData();
 
         // Act
         emailService.sendEmail(emailData);
 
-        // Assert - should use user sendMail API with sending-user
-        verify(usersRequestBuilder).byUserId("sending-user@example.com");
+        // Assert - should use user sendMail API with sender-email
+        verify(usersRequestBuilder).byUserId("sender@example.com");
         verify(sendMailRequestBuilder, times(1)).post(any());
     }
 
     @Test
     void sendEmail_groupSender_throttled429_retriesWithBackoff() {
         // Arrange
-        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(true);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        when(senderTypeResolver.getSenderGroup()).thenReturn("group@example.com");
         EmailData emailData = createEmailData();
         ApiException throttledException = createApiException(429);
 
@@ -327,8 +330,9 @@ class EmailServiceTest {
     @Test
     void sendEmail_groupSender_nonThrottlingError_doesNotRetry() {
         // Arrange
-        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(true);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        when(senderTypeResolver.getSenderGroup()).thenReturn("group@example.com");
         EmailData emailData = createEmailData();
         ApiException serverError = createApiException(500);
 
@@ -345,25 +349,10 @@ class EmailServiceTest {
     }
 
     @Test
-    void sendEmail_groupSenderWithoutSendingUser_throwsException() {
-        // Arrange
-        when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        appConfig.getMicrosoft().setSendingUser(null);
-        EmailData emailData = createEmailData();
-
-        // Act & Assert
-        EmailSenderException exception = assertThrows(
-                EmailSenderException.class,
-                () -> emailService.sendEmail(emailData)
-        );
-
-        assertTrue(exception.getMessage().contains("sending-user is required"));
-    }
-
-    @Test
     void sendEmail_userSender_usesUserSendMailApi() {
         // Arrange
-        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailData emailData = createEmailData();
 
         // Act
@@ -410,7 +399,6 @@ class EmailServiceTest {
         microsoftConfig.setTenantId("test-tenant");
         microsoftConfig.setClientId("test-client");
         microsoftConfig.setClientSecret("test-secret");
-        microsoftConfig.setSenderEmail("sender@example.com");
         config.setMicrosoft(microsoftConfig);
 
         AppConfig.DatasourceConfig datasourceConfig = new AppConfig.DatasourceConfig();
@@ -426,6 +414,7 @@ class EmailServiceTest {
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
+        emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Test Subject");
         emailConfig.setRecipientColumn("Email");
         emailConfig.setAttachmentFilename("test.pdf");

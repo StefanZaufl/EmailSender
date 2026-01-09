@@ -53,7 +53,7 @@ public class EmailService {
     public void sendEmail(EmailData emailData) {
         logger.info("Sending email to: {} (row {}) via {}",
                 emailData.getRecipientEmail(), emailData.getRowNumber(),
-                senderTypeResolver.isSenderGroup() ? "group" : "user");
+                senderTypeResolver.isSendFromGroup() ? "group" : "user");
 
         try {
             // Process templates
@@ -91,7 +91,7 @@ public class EmailService {
 
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                if (senderTypeResolver.isSenderGroup()) {
+                if (senderTypeResolver.isSendFromGroup()) {
                     sendViaGroup(message);
                 } else {
                     sendViaUser(message);
@@ -149,31 +149,25 @@ public class EmailService {
         sendMailRequest.setMessage(message);
         sendMailRequest.setSaveToSentItems(true);
 
-        String senderEmail = appConfig.getMicrosoft().getSenderEmail();
+        String senderEmail = senderTypeResolver.getSenderEmail();
         graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
     }
 
     /**
      * Sends email from a group mailbox using a user's sendMail endpoint.
      * Microsoft Graph doesn't have a direct /groups/{id}/sendMail endpoint.
-     * Instead, we use /users/{sendingUser}/sendMail and set the 'from' property
+     * Instead, we use /users/{senderEmail}/sendMail and set the 'from' property
      * to the group's email address. The sending user must have "Send As"
      * permission on the group in Exchange Online.
      */
     private void sendViaGroup(Message message) {
-        String sendingUser = appConfig.getMicrosoft().getSendingUser();
-        if (sendingUser == null || sendingUser.isBlank()) {
-            throw new EmailSenderException(
-                    "sending-user is required when sending from a group mailbox. " +
-                    "Configure 'email-sender.microsoft.sending-user' with a user that has " +
-                    "'Send As' permission on the group '" + appConfig.getMicrosoft().getSenderEmail() + "'.");
-        }
+        String senderEmail = senderTypeResolver.getSenderEmail();
+        String senderGroup = senderTypeResolver.getSenderGroup();
 
         // Set the 'from' property to the group's email address
-        String groupEmail = appConfig.getMicrosoft().getSenderEmail();
         Recipient fromRecipient = new Recipient();
         EmailAddress fromAddress = new EmailAddress();
-        fromAddress.setAddress(groupEmail);
+        fromAddress.setAddress(senderGroup);
         fromRecipient.setEmailAddress(fromAddress);
         message.setFrom(fromRecipient);
 
@@ -181,8 +175,8 @@ public class EmailService {
         sendMailRequest.setMessage(message);
         sendMailRequest.setSaveToSentItems(true);
 
-        logger.debug("Sending email via user '{}' on behalf of group '{}'", sendingUser, groupEmail);
-        graphClient.users().byUserId(sendingUser).sendMail().post(sendMailRequest);
+        logger.debug("Sending email via user '{}' on behalf of group '{}'", senderEmail, senderGroup);
+        graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
     }
 
     /**

@@ -104,7 +104,8 @@ class DryRunIntegrationTest {
         // Create real services (no mocks except for SenderTypeResolver which is not used in dry-run)
         TemplateService templateService = new TemplateService(appConfig);
         PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
-        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
@@ -182,7 +183,8 @@ class DryRunIntegrationTest {
         // Create real services (no mocks except for SenderTypeResolver which is not used in dry-run)
         TemplateService templateService = new TemplateService(appConfig);
         PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
-        when(senderTypeResolver.isSenderGroup()).thenReturn(false);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
         List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
@@ -378,7 +380,6 @@ class DryRunIntegrationTest {
         microsoftConfig.setTenantId("test-tenant");
         microsoftConfig.setClientId("test-client");
         microsoftConfig.setClientSecret("test-secret");
-        microsoftConfig.setSenderEmail("sender@example.com");
         appConfig.setMicrosoft(microsoftConfig);
 
         // Datasource config
@@ -397,6 +398,7 @@ class DryRunIntegrationTest {
 
         // Email config
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
+        emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Report for {{FullName}}");
         emailConfig.setRecipientColumn("Email");
         emailConfig.setAttachmentFilename("report.pdf");
