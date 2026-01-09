@@ -10,12 +10,6 @@ email-sender:
     tenant-id: your-azure-tenant-id
     client-id: your-azure-client-id
     client-secret: your-azure-client-secret
-    # The email address that will appear as the sender
-    sender-email: sender@yourcompany.com
-    # Whether the sender is a group mailbox (optional, default: auto-detect)
-    # Set to true for Microsoft 365 Group mailboxes, false for user mailboxes
-    # If not specified, the application will auto-detect by querying the Graph API
-    # sender-is-group: false
 
   datasource:
     # Type: 'csv' or 'excel'
@@ -38,6 +32,13 @@ email-sender:
     attachment: /path/to/document-template.docx
 
   email:
+    # The user email address that sends emails (required)
+    # This user must have a mailbox in your Microsoft 365 tenant
+    sender-email: sender@yourcompany.com
+    # Optional: group email address to appear as the sender ("from" field)
+    # When set, emails are sent via sender-email but appear to come from this group
+    # The sender-email user must have "Send As" permission on the group in Exchange Online
+    # sender-group: team@yourcompany.com
     # Subject line template - use {{fieldName}} for placeholder substitution
     subject-template: "Hello {{name}}, your report is ready"
     # Column name in the data source containing recipient email addresses

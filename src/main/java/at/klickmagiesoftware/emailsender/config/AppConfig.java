@@ -114,24 +114,6 @@ public class AppConfig {
         @NotBlank
         private String clientSecret;
 
-        @NotBlank
-        private String senderEmail;
-
-        /**
-         * Whether the sender email is a group mailbox. Default: null (auto-detect)
-         * Set to true for group mailboxes, false for user mailboxes.
-         * If null, the application will auto-detect by querying the Graph API.
-         */
-        private Boolean senderIsGroup;
-
-        /**
-         * User mailbox to use for sending emails when sender-email is a group.
-         * Required when sending from a group mailbox. This user must have
-         * "Send As" permission on the group in Exchange Online.
-         * Not required when sender-email is a user mailbox.
-         */
-        private String sendingUser;
-
         public String getTenantId() {
             return tenantId;
         }
@@ -154,30 +136,6 @@ public class AppConfig {
 
         public void setClientSecret(String clientSecret) {
             this.clientSecret = clientSecret;
-        }
-
-        public String getSenderEmail() {
-            return senderEmail;
-        }
-
-        public void setSenderEmail(String senderEmail) {
-            this.senderEmail = senderEmail;
-        }
-
-        public Boolean getSenderIsGroup() {
-            return senderIsGroup;
-        }
-
-        public void setSenderIsGroup(Boolean senderIsGroup) {
-            this.senderIsGroup = senderIsGroup;
-        }
-
-        public String getSendingUser() {
-            return sendingUser;
-        }
-
-        public void setSendingUser(String sendingUser) {
-            this.sendingUser = sendingUser;
         }
     }
 
@@ -274,6 +232,22 @@ public class AppConfig {
      */
     public static class EmailConfig {
 
+        /**
+         * The email address of the user who sends emails.
+         * This user must have a mailbox in the Microsoft 365 tenant.
+         * When sending from a group, this user must have "Send As" permission on the group.
+         */
+        @NotBlank
+        private String senderEmail;
+
+        /**
+         * Optional: The email address of a group to send from.
+         * When set, emails will appear to come from this group address,
+         * but are sent via the user specified in sender-email.
+         * The sender-email user must have "Send As" permission on this group in Exchange Online.
+         */
+        private String senderGroup;
+
         @NotBlank
         private String subjectTemplate;
 
@@ -281,6 +255,22 @@ public class AppConfig {
         private String recipientColumn;
 
         private String attachmentFilename = "document.pdf";
+
+        public String getSenderEmail() {
+            return senderEmail;
+        }
+
+        public void setSenderEmail(String senderEmail) {
+            this.senderEmail = senderEmail;
+        }
+
+        public String getSenderGroup() {
+            return senderGroup;
+        }
+
+        public void setSenderGroup(String senderGroup) {
+            this.senderGroup = senderGroup;
+        }
 
         public String getSubjectTemplate() {
             return subjectTemplate;

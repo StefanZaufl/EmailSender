@@ -27,9 +27,6 @@ email-sender:
     tenant-id: ${AZURE_TENANT_ID:your-tenant-id}
     client-id: ${AZURE_CLIENT_ID:your-client-id}
     client-secret: ${AZURE_CLIENT_SECRET:your-client-secret}
-    sender-email: ${SENDER_EMAIL:sender@company.com}
-    # Whether the sender is a group mailbox (optional, auto-detect if not set)
-    # sender-is-group: ${SENDER_IS_GROUP:}
 
   datasource:
     type: ${DATA_SOURCE_TYPE:csv}
@@ -43,6 +40,11 @@ email-sender:
     attachment: ${ATTACHMENT_TEMPLATE_PATH:/path/to/attachment-template.docx}
 
   email:
+    # The user email address that sends the emails (required)
+    sender-email: ${SENDER_EMAIL:sender@company.com}
+    # Optional: group email address to appear in the "from" field
+    # When set, emails are sent via sender-email but appear to come from this group
+    # sender-group: ${SENDER_GROUP:}
     subject-template: ${EMAIL_SUBJECT:Hello {{name}}, your document is ready}
     recipient-column: ${RECIPIENT_COLUMN:Email}
     attachment-filename: ${ATTACHMENT_FILENAME:document.pdf}

@@ -10,7 +10,7 @@ A Java CLI tool that sends personalized emails with PDF attachments. The tool re
   - Word document (.docx) attachments with placeholder replacement
   - Automatic Word to PDF conversion
 - **Microsoft 365 Integration**: Send emails via Microsoft Graph API with OAuth2 client credentials flow
-- **Group Mailbox Support**: Send from Microsoft 365 Group mailboxes with automatic sender type detection
+- **Group Mailbox Support**: Send from Microsoft 365 Group mailboxes by configuring `sender-group`
 - **Flexible Filtering**: Configure which rows to process based on column values
 - **Field Mappings**: Map template placeholders to different column names
 - **CSV Report Generation**: Generate a report of sent emails with success/failure status
@@ -62,13 +62,11 @@ After registration, you'll be on the application's Overview page. Note down:
 2. Click **+ Add a permission**
 3. Select **Microsoft Graph**
 4. Choose **Application permissions** (not Delegated)
-5. Search for and select the following permissions:
+5. Search for and select the following permission:
    - `Mail.Send` - Required to send emails on behalf of users
-   - `User.Read.All` - Required to verify user mailboxes (for auto-detection)
-   - `Group.ReadWrite.All` - Required to send emails from group mailboxes
 6. Click **Add permissions**
 
-> **Note**: If you only send from user mailboxes and set `sender-is-group: false` in your config, you only need `Mail.Send`. The additional permissions are required for group mailbox support and auto-detection.
+> **Note**: When sending from a group mailbox (using `sender-group`), you also need to grant "Send As" permission in Exchange Online (see Step 6).
 
 ### Step 5: Grant Admin Consent
 
@@ -81,24 +79,19 @@ Application permissions require admin consent:
 
 > **Note**: You need Global Administrator or Privileged Role Administrator rights to grant admin consent. If you don't have these permissions, contact your IT administrator.
 
-### Step 6: Configure the Sender Email
+### Step 6: Configure the Sender
 
-The `sender-email` in your configuration must be a valid mailbox in your Microsoft 365 tenant. This can be:
+The `sender-email` in your configuration must be a valid user mailbox in your Microsoft 365 tenant. This is the user that will send the emails.
 
-- A user mailbox (e.g., `noreply@yourcompany.com`)
-- A shared mailbox (e.g., `reports@yourcompany.com`)
-- A Microsoft 365 Group mailbox (e.g., `team@yourcompany.com`)
+Optionally, you can configure a `sender-group` to make emails appear as if they come from a group mailbox. When `sender-group` is set:
+- Emails are sent via the `sender-email` user's sendMail endpoint
+- The "from" field of the email is set to the group's address
+- The `sender-email` user must have **"Send As"** permission on the group in Exchange Online
 
-**Sender Type Detection**: The application automatically detects whether the sender email belongs to a user or a group by querying the Microsoft Graph API at startup. You can also explicitly set this via the `sender-is-group` configuration option.
-
-| Sender Type | API Used | Permission Required |
-|-------------|----------|---------------------|
-| User/Shared Mailbox | `POST /users/{id}/sendMail` | `Mail.Send` |
-| Group Mailbox | `POST /users/{sendingUser}/sendMail` with `from` set to group | `Mail.Send`, `Group.Read.All`, and Exchange "Send As" permission |
-
-**Important for Group Mailboxes**: Microsoft Graph does not have a direct `/groups/{id}/sendMail` endpoint. Instead, emails are sent via a user's sendMail endpoint with the `from` property set to the group's email address. This requires:
-1. A `sending-user` configured in your YAML (a user mailbox in your tenant)
-2. The sending user must have **"Send As"** permission on the group in Exchange Online
+| Scenario | Configuration | API Used | Permission Required |
+|----------|---------------|----------|---------------------|
+| Send from user | `sender-email` only | `POST /users/{sender-email}/sendMail` | `Mail.Send` |
+| Send from group | `sender-email` + `sender-group` | `POST /users/{sender-email}/sendMail` with `from` set to group | `Mail.Send` and Exchange "Send As" permission |
 
 ### Configuration Example
 
@@ -110,12 +103,11 @@ email-sender:
     tenant-id: 12345678-1234-1234-1234-123456789abc
     client-id: 87654321-4321-4321-4321-cba987654321
     client-secret: your-client-secret-value
+  email:
     sender-email: noreply@yourcompany.com
-    # Optional: explicitly set sender type (auto-detected if omitted)
-    # sender-is-group: false
 ```
 
-For group mailboxes:
+To send from a group mailbox:
 
 ```yaml
 email-sender:
@@ -123,12 +115,12 @@ email-sender:
     tenant-id: 12345678-1234-1234-1234-123456789abc
     client-id: 87654321-4321-4321-4321-cba987654321
     client-secret: your-client-secret-value
-    sender-email: team@yourcompany.com
-    sender-is-group: true  # Optional: auto-detected if omitted
-    sending-user: service-account@yourcompany.com  # Required for groups - must have "Send As" permission
+  email:
+    sender-email: service-account@yourcompany.com  # User who sends the email
+    sender-group: team@yourcompany.com  # Group address that appears in "from" field
 ```
 
-To grant "Send As" permission on the group to your sending user, run this PowerShell command (requires Exchange Online PowerShell module):
+To grant "Send As" permission on the group to the sender user, run this PowerShell command (requires Exchange Online PowerShell module):
 
 ```powershell
 Add-RecipientPermission -Identity "team@yourcompany.com" -Trustee "service-account@yourcompany.com" -AccessRights SendAs
@@ -148,6 +140,7 @@ email-sender:
     tenant-id: ${AZURE_TENANT_ID}
     client-id: ${AZURE_CLIENT_ID}
     client-secret: ${AZURE_CLIENT_SECRET}
+  email:
     sender-email: noreply@yourcompany.com
 ```
 
@@ -158,11 +151,9 @@ email-sender:
 | `AADSTS7000215: Invalid client secret` | Client secret is incorrect or expired | Create a new client secret |
 | `AADSTS700016: Application not found` | Wrong client ID or tenant ID | Verify the IDs in Azure portal |
 | `Authorization_RequestDenied` | Missing admin consent | Grant admin consent for required permissions |
-| `ErrorAccessDenied` | Sender email doesn't exist or no permission | Verify the sender mailbox exists |
-| `The requested user 'x@y.com' is invalid` | Sender is a group but detected as user | Set `sender-is-group: true` in config |
-| `sending-user is required` | Missing sending-user config for group sender | Add `sending-user` config with a user that has "Send As" permission on the group |
-| `HTTP 403` when sending from group | Sending user lacks "Send As" permission | Grant "Send As" permission in Exchange: `Add-RecipientPermission -Identity "group@..." -Trustee "user@..." -AccessRights SendAs` |
-| `Sender email is neither a valid user nor group` | Email doesn't exist in tenant | Verify the sender email address |
+| `ErrorAccessDenied` | Sender email doesn't exist or no permission | Verify the sender-email mailbox exists |
+| `The requested user 'x@y.com' is invalid` | The sender-email is not a valid user mailbox | Verify the sender-email is a user mailbox (not a group) |
+| `HTTP 403` when sending from group | Sender user lacks "Send As" permission on the group | Grant "Send As" permission in Exchange: `Add-RecipientPermission -Identity "group@..." -Trustee "user@..." -AccessRights SendAs` |
 
 ## Build
 
@@ -182,8 +173,6 @@ email-sender:
     tenant-id: your-azure-tenant-id
     client-id: your-azure-client-id
     client-secret: your-azure-client-secret
-    sender-email: sender@yourcompany.com
-    # sender-is-group: false  # Optional: auto-detected if omitted
 
   datasource:
     type: excel  # or 'csv'
@@ -197,6 +186,8 @@ email-sender:
     attachment: /path/to/document-template.docx
 
   email:
+    sender-email: sender@yourcompany.com
+    # sender-group: team@yourcompany.com  # Optional: set to send from a group
     subject-template: "Hello {{name}}, your report is ready"
     recipient-column: "Email"
     attachment-filename: "report.pdf"  # optional
