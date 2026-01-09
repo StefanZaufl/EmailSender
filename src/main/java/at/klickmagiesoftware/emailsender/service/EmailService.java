@@ -164,7 +164,8 @@ public class EmailService {
                     appConfig.getMicrosoft().getSenderEmail());
         }
 
-        var sendMailRequest = new com.microsoft.graph.groups.item.sendmail.SendMailPostRequestBody();
+        // Reuse the same request body class - the API structure is identical for users and groups
+        SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
         sendMailRequest.setMessage(message);
         sendMailRequest.setSaveToSentItems(true);
 
