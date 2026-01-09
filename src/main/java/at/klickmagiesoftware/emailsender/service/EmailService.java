@@ -191,8 +191,12 @@ public class EmailService {
      */
     private long parseRetryAfter(ApiException e, long defaultDelayMs) {
         // Try to extract Retry-After from response headers
-        var retryAfterValues = e.getResponseHeaders().get("Retry-After");
-        if (!retryAfterValues.isEmpty()) {
+        var headers = e.getResponseHeaders();
+        if (headers == null) {
+            return defaultDelayMs;
+        }
+        var retryAfterValues = headers.get("Retry-After");
+        if (retryAfterValues != null && !retryAfterValues.isEmpty()) {
             try {
                 // Retry-After can be in seconds
                 int seconds = Integer.parseInt(retryAfterValues.iterator().next());
