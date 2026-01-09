@@ -68,3 +68,10 @@ email-sender:
     "{{name}}": "FullName"
     "{{company}}": "CompanyName"
     "{{date}}": "ReportDate"
+
+  # Optional: Generate a CSV report of email sending results
+  # The report contains each email address and whether it was sent successfully
+  report:
+    # Path to the output CSV report file
+    # If not set, no report will be generated
+    output-path: /path/to/email-report.csv

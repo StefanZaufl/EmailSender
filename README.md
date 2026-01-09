@@ -13,6 +13,7 @@ A Java CLI tool that sends personalized emails with PDF attachments. The tool re
 - **Group Mailbox Support**: Send from Microsoft 365 Group mailboxes with automatic sender type detection
 - **Flexible Filtering**: Configure which rows to process based on column values
 - **Field Mappings**: Map template placeholders to different column names
+- **CSV Report Generation**: Generate a report of sent emails with success/failure status
 - **Dry Run Mode**: Test processing without sending emails
 - **Error Handling**: Continues processing on failures and reports all errors at the end
 
@@ -192,6 +193,10 @@ email-sender:
   field-mappings:
     "{{name}}": "FullName"
     "{{company}}": "CompanyName"
+
+  # Optional: generate a CSV report of email sending results
+  report:
+    output-path: /path/to/email-report.csv
 ```
 
 ### Environment Variables
@@ -225,6 +230,28 @@ java --enable-preview -jar email-sender-cli.jar \
 ```
 
 This processes all templates and writes output files to the specified directory without sending emails.
+
+### CSV Report
+
+When configured, the application generates a CSV report after processing all emails. The report contains two columns:
+- `Email` - The recipient email address
+- `Status` - Either `Success` or `Failed`
+
+Configure the report output path in your configuration file:
+
+```yaml
+email-sender:
+  report:
+    output-path: ./reports/email-report.csv
+```
+
+Example report output:
+```csv
+Email,Status
+john@example.com,Success
+jane@example.com,Success
+bob@example.com,Failed
+```
 
 ### Verbose Mode
 
@@ -325,6 +352,7 @@ Same structure as CSV, with column headers in the first row. Supports `.xlsx` an
     │   │       ├── EmailService.java
     │   │       ├── ExcelDataSourceReader.java
     │   │       ├── PdfGeneratorService.java
+    │   │       ├── ReportService.java
     │   │       ├── SenderTypeResolver.java
     │   │       └── TemplateService.java
     │   └── resources/

@@ -29,3 +29,14 @@ The placeholders will be replaced with values from your data source when generat
 4. Run: `java -jar email-sender-cli.jar --spring.config.import=/path/to/your-config.yml`
 
 Use `--dry-run` to test without sending emails.
+
+## CSV Report
+
+Configure the `report.output-path` in your configuration to generate a CSV report after processing. The report contains each email address and whether the send was successful or failed:
+
+```csv
+Email,Status
+john@example.com,Success
+jane@example.com,Success
+bob@example.com,Failed
+```
