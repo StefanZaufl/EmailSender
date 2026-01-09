@@ -66,6 +66,11 @@ public class SenderTypeResolver {
             if (isGroup) {
                 // Need to resolve the group ID
                 this.groupId = resolveGroupId(senderEmail);
+                if (this.groupId == null) {
+                    throw new EmailSenderException(
+                            "Sender email '" + senderEmail + "' is configured as a group but no group was found. " +
+                            "Please verify the email address or check Group.ReadWrite.All permission.");
+                }
                 logger.info("Resolved group ID: {}", groupId);
             }
         } else {

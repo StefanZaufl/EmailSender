@@ -209,7 +209,7 @@ class SenderTypeResolverTest {
                 resolver::init
         );
 
-        assertTrue(exception.getMessage().contains("is neither a valid user nor a group"));
+        assertTrue(exception.getMessage().contains("is configured as a group but no group was found"));
     }
 
     // ==================== Group Resolution Tests ====================
