@@ -94,7 +94,11 @@ The `sender-email` in your configuration must be a valid mailbox in your Microso
 | Sender Type | API Used | Permission Required |
 |-------------|----------|---------------------|
 | User/Shared Mailbox | `POST /users/{id}/sendMail` | `Mail.Send` |
-| Group Mailbox | `POST /groups/{id}/sendMail` | `Mail.Send` and `Group.ReadWrite.All` |
+| Group Mailbox | `POST /users/{sendingUser}/sendMail` with `from` set to group | `Mail.Send`, `Group.Read.All`, and Exchange "Send As" permission |
+
+**Important for Group Mailboxes**: Microsoft Graph does not have a direct `/groups/{id}/sendMail` endpoint. Instead, emails are sent via a user's sendMail endpoint with the `from` property set to the group's email address. This requires:
+1. A `sending-user` configured in your YAML (a user mailbox in your tenant)
+2. The sending user must have **"Send As"** permission on the group in Exchange Online
 
 ### Configuration Example
 
@@ -121,6 +125,13 @@ email-sender:
     client-secret: your-client-secret-value
     sender-email: team@yourcompany.com
     sender-is-group: true  # Optional: auto-detected if omitted
+    sending-user: service-account@yourcompany.com  # Required for groups - must have "Send As" permission
+```
+
+To grant "Send As" permission on the group to your sending user, run this PowerShell command (requires Exchange Online PowerShell module):
+
+```powershell
+Add-RecipientPermission -Identity "team@yourcompany.com" -Trustee "service-account@yourcompany.com" -AccessRights SendAs
 ```
 
 Or using environment variables for security:
@@ -149,7 +160,8 @@ email-sender:
 | `Authorization_RequestDenied` | Missing admin consent | Grant admin consent for required permissions |
 | `ErrorAccessDenied` | Sender email doesn't exist or no permission | Verify the sender mailbox exists |
 | `The requested user 'x@y.com' is invalid` | Sender is a group but detected as user | Set `sender-is-group: true` in config |
-| `HTTP 403` on group sendMail | Missing Mail.Send or Group.ReadWrite.All permission | Add and grant consent for both Mail.Send and Group.ReadWrite.All |
+| `sending-user is required` | Missing sending-user config for group sender | Add `sending-user` config with a user that has "Send As" permission on the group |
+| `HTTP 403` when sending from group | Sending user lacks "Send As" permission | Grant "Send As" permission in Exchange: `Add-RecipientPermission -Identity "group@..." -Trustee "user@..." -AccessRights SendAs` |
 | `Sender email is neither a valid user nor group` | Email doesn't exist in tenant | Verify the sender email address |
 
 ## Build

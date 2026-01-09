@@ -124,6 +124,14 @@ public class AppConfig {
          */
         private Boolean senderIsGroup;
 
+        /**
+         * User mailbox to use for sending emails when sender-email is a group.
+         * Required when sending from a group mailbox. This user must have
+         * "Send As" permission on the group in Exchange Online.
+         * Not required when sender-email is a user mailbox.
+         */
+        private String sendingUser;
+
         public String getTenantId() {
             return tenantId;
         }
@@ -162,6 +170,14 @@ public class AppConfig {
 
         public void setSenderIsGroup(Boolean senderIsGroup) {
             this.senderIsGroup = senderIsGroup;
+        }
+
+        public String getSendingUser() {
+            return sendingUser;
+        }
+
+        public void setSendingUser(String sendingUser) {
+            this.sendingUser = sendingUser;
         }
     }
 

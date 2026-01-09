@@ -1,7 +1,5 @@
 package at.klickmagiesoftware.emailsender.service;
 
-import com.microsoft.graph.groups.GroupsRequestBuilder;
-import com.microsoft.graph.groups.item.GroupItemRequestBuilder;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
@@ -51,15 +49,6 @@ class EmailServiceTest {
     @Mock
     private SenderTypeResolver senderTypeResolver;
 
-    @Mock
-    private GroupsRequestBuilder groupsRequestBuilder;
-
-    @Mock
-    private GroupItemRequestBuilder groupItemRequestBuilder;
-
-    @Mock
-    private com.microsoft.graph.groups.item.sendmail.SendMailRequestBuilder groupSendMailRequestBuilder;
-
     private AppConfig appConfig;
     private EmailService emailService;
 
@@ -68,15 +57,10 @@ class EmailServiceTest {
         MockitoAnnotations.openMocks(this);
         appConfig = createAppConfig();
 
-        // Set up mock chain for graph client - user sending
+        // Set up mock chain for graph client - user sending (used for both user and group senders)
         when(graphClient.users()).thenReturn(usersRequestBuilder);
         when(usersRequestBuilder.byUserId(anyString())).thenReturn(userItemRequestBuilder);
         when(userItemRequestBuilder.sendMail()).thenReturn(sendMailRequestBuilder);
-
-        // Set up mock chain for graph client - group sending
-        when(graphClient.groups()).thenReturn(groupsRequestBuilder);
-        when(groupsRequestBuilder.byGroupId(anyString())).thenReturn(groupItemRequestBuilder);
-        when(groupItemRequestBuilder.sendMail()).thenReturn(groupSendMailRequestBuilder);
 
         // Set up template and PDF mocks
         when(templateService.processSubject(any())).thenReturn("Test Subject");
@@ -303,32 +287,32 @@ class EmailServiceTest {
     // ==================== Group Sender Tests ====================
 
     @Test
-    void sendEmail_groupSender_usesGroupSendMailApi() {
+    void sendEmail_groupSender_usesUserSendMailWithSendingUser() {
         // Arrange
         when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
         EmailData emailData = createEmailData();
 
         // Act
         emailService.sendEmail(emailData);
 
-        // Assert - should use group sendMail API, not user sendMail
-        verify(groupSendMailRequestBuilder, times(1)).post(any());
-        verify(sendMailRequestBuilder, never()).post(any());
+        // Assert - should use user sendMail API with sending-user
+        verify(usersRequestBuilder).byUserId("sending-user@example.com");
+        verify(sendMailRequestBuilder, times(1)).post(any());
     }
 
     @Test
     void sendEmail_groupSender_throttled429_retriesWithBackoff() {
         // Arrange
         when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
         EmailData emailData = createEmailData();
         ApiException throttledException = createApiException(429);
 
         // First call throws 429, second succeeds
         doThrow(throttledException)
                 .doNothing()
-                .when(groupSendMailRequestBuilder).post(any());
+                .when(sendMailRequestBuilder).post(any());
 
         // Act
         long startTime = System.currentTimeMillis();
@@ -336,7 +320,7 @@ class EmailServiceTest {
         long duration = System.currentTimeMillis() - startTime;
 
         // Assert - should have retried once
-        verify(groupSendMailRequestBuilder, times(2)).post(any());
+        verify(sendMailRequestBuilder, times(2)).post(any());
         assertTrue(duration >= 40, "Should have waited for retry delay");
     }
 
@@ -344,11 +328,11 @@ class EmailServiceTest {
     void sendEmail_groupSender_nonThrottlingError_doesNotRetry() {
         // Arrange
         when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        when(senderTypeResolver.getGroupId()).thenReturn("group-123");
+        appConfig.getMicrosoft().setSendingUser("sending-user@example.com");
         EmailData emailData = createEmailData();
         ApiException serverError = createApiException(500);
 
-        doThrow(serverError).when(groupSendMailRequestBuilder).post(any());
+        doThrow(serverError).when(sendMailRequestBuilder).post(any());
 
         // Act & Assert
         EmailSenderException exception = assertThrows(
@@ -356,15 +340,15 @@ class EmailServiceTest {
                 () -> emailService.sendEmail(emailData)
         );
 
-        verify(groupSendMailRequestBuilder, times(1)).post(any());
+        verify(sendMailRequestBuilder, times(1)).post(any());
         assertTrue(exception.getMessage().contains("HTTP 500"));
     }
 
     @Test
-    void sendEmail_groupSenderWithNullGroupId_throwsException() {
+    void sendEmail_groupSenderWithoutSendingUser_throwsException() {
         // Arrange
         when(senderTypeResolver.isSenderGroup()).thenReturn(true);
-        when(senderTypeResolver.getGroupId()).thenReturn(null);
+        appConfig.getMicrosoft().setSendingUser(null);
         EmailData emailData = createEmailData();
 
         // Act & Assert
@@ -373,7 +357,7 @@ class EmailServiceTest {
                 () -> emailService.sendEmail(emailData)
         );
 
-        assertTrue(exception.getMessage().contains("Group ID not resolved"));
+        assertTrue(exception.getMessage().contains("sending-user is required"));
     }
 
     @Test
@@ -385,9 +369,9 @@ class EmailServiceTest {
         // Act
         emailService.sendEmail(emailData);
 
-        // Assert - should use user sendMail API, not group sendMail
+        // Assert - should use user sendMail API with sender-email
+        verify(usersRequestBuilder).byUserId("sender@example.com");
         verify(sendMailRequestBuilder, times(1)).post(any());
-        verify(groupSendMailRequestBuilder, never()).post(any());
     }
 
     // ==================== Helper Methods ====================

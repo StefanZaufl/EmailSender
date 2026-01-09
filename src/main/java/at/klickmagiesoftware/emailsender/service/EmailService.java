@@ -154,23 +154,35 @@ public class EmailService {
     }
 
     /**
-     * Sends email via the groups sendMail API endpoint.
-     * Uses POST /groups/{id}/sendMail to send email from the group mailbox.
+     * Sends email from a group mailbox using a user's sendMail endpoint.
+     * Microsoft Graph doesn't have a direct /groups/{id}/sendMail endpoint.
+     * Instead, we use /users/{sendingUser}/sendMail and set the 'from' property
+     * to the group's email address. The sending user must have "Send As"
+     * permission on the group in Exchange Online.
      */
     private void sendViaGroup(Message message) {
-        String groupId = senderTypeResolver.getGroupId();
-        if (groupId == null) {
-            throw new EmailSenderException("Group ID not resolved for sender email: " +
-                    appConfig.getMicrosoft().getSenderEmail());
+        String sendingUser = appConfig.getMicrosoft().getSendingUser();
+        if (sendingUser == null || sendingUser.isBlank()) {
+            throw new EmailSenderException(
+                    "sending-user is required when sending from a group mailbox. " +
+                    "Configure 'email-sender.microsoft.sending-user' with a user that has " +
+                    "'Send As' permission on the group '" + appConfig.getMicrosoft().getSenderEmail() + "'.");
         }
 
-        // Reuse the same request body class - the API structure is identical for users and groups
+        // Set the 'from' property to the group's email address
+        String groupEmail = appConfig.getMicrosoft().getSenderEmail();
+        Recipient fromRecipient = new Recipient();
+        EmailAddress fromAddress = new EmailAddress();
+        fromAddress.setAddress(groupEmail);
+        fromRecipient.setEmailAddress(fromAddress);
+        message.setFrom(fromRecipient);
+
         SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
         sendMailRequest.setMessage(message);
         sendMailRequest.setSaveToSentItems(true);
 
-        logger.debug("Sending email via group sendMail API (group ID: {})", groupId);
-        graphClient.groups().byGroupId(groupId).sendMail().post(sendMailRequest);
+        logger.debug("Sending email via user '{}' on behalf of group '{}'", sendingUser, groupEmail);
+        graphClient.users().byUserId(sendingUser).sendMail().post(sendMailRequest);
     }
 
     /**
