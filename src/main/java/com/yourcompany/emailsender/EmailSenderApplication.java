@@ -63,7 +63,7 @@ public class EmailSenderApplication implements CommandLineRunner, ExitCodeGenera
      * @param args the original command-line arguments
      * @return filtered arguments without Spring Boot-specific options
      */
-    private String[] filterSpringArguments(String[] args) {
+    String[] filterSpringArguments(String[] args) {
         return Arrays.stream(args)
                 .filter(arg -> !isSpringArgument(arg))
                 .toArray(String[]::new);
@@ -75,7 +75,7 @@ public class EmailSenderApplication implements CommandLineRunner, ExitCodeGenera
      * @param arg the argument to check
      * @return true if the argument is Spring Boot-specific
      */
-    private boolean isSpringArgument(String arg) {
+    boolean isSpringArgument(String arg) {
         return arg.startsWith("--spring.") || arg.startsWith("-Dspring.");
     }
 
