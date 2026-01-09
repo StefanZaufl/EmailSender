@@ -2,13 +2,10 @@ package at.klickmagiesoftware.emailsender.service;
 
 import com.microsoft.graph.models.Attachment;
 import com.microsoft.graph.models.BodyType;
-import com.microsoft.graph.models.Conversation;
-import com.microsoft.graph.models.ConversationThread;
 import com.microsoft.graph.models.EmailAddress;
 import com.microsoft.graph.models.FileAttachment;
 import com.microsoft.graph.models.ItemBody;
 import com.microsoft.graph.models.Message;
-import com.microsoft.graph.models.Post;
 import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
@@ -83,7 +80,7 @@ public class EmailService {
     /**
      * Sends the email with retry logic for handling throttling (HTTP 429) errors.
      * Uses exponential backoff between retries.
-     * Routes to either user sendMail or group conversations API based on sender type.
+     * Routes to either user sendMail or group sendMail API based on sender type.
      */
     private void sendWithRetry(EmailData emailData, Message message, String subject, String htmlBody) {
         AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
@@ -95,7 +92,7 @@ public class EmailService {
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 if (senderTypeResolver.isSenderGroup()) {
-                    sendViaGroup(emailData, subject, htmlBody, message.getAttachments());
+                    sendViaGroup(message);
                 } else {
                     sendViaUser(message);
                 }
@@ -157,49 +154,35 @@ public class EmailService {
     }
 
     /**
-     * Sends email via the groups conversations API endpoint.
-     * Creates a new conversation in the group that emails the external recipient.
+     * Sends email from a group mailbox using a user's sendMail endpoint.
+     * Microsoft Graph doesn't have a direct /groups/{id}/sendMail endpoint.
+     * Instead, we use /users/{sendingUser}/sendMail and set the 'from' property
+     * to the group's email address. The sending user must have "Send As"
+     * permission on the group in Exchange Online.
      */
-    private void sendViaGroup(EmailData emailData, String subject, String htmlBody, List<Attachment> attachments) {
-        String groupId = senderTypeResolver.getGroupId();
-        if (groupId == null) {
-            throw new EmailSenderException("Group ID not resolved for sender email: " +
-                    appConfig.getMicrosoft().getSenderEmail());
+    private void sendViaGroup(Message message) {
+        String sendingUser = appConfig.getMicrosoft().getSendingUser();
+        if (sendingUser == null || sendingUser.isBlank()) {
+            throw new EmailSenderException(
+                    "sending-user is required when sending from a group mailbox. " +
+                    "Configure 'email-sender.microsoft.sending-user' with a user that has " +
+                    "'Send As' permission on the group '" + appConfig.getMicrosoft().getSenderEmail() + "'.");
         }
 
-        // Create the post body
-        ItemBody postBody = new ItemBody();
-        postBody.setContentType(BodyType.Html);
-        postBody.setContent(htmlBody);
+        // Set the 'from' property to the group's email address
+        String groupEmail = appConfig.getMicrosoft().getSenderEmail();
+        Recipient fromRecipient = new Recipient();
+        EmailAddress fromAddress = new EmailAddress();
+        fromAddress.setAddress(groupEmail);
+        fromRecipient.setEmailAddress(fromAddress);
+        message.setFrom(fromRecipient);
 
-        // Create recipient for the external email
-        Recipient recipient = new Recipient();
-        EmailAddress emailAddress = new EmailAddress();
-        emailAddress.setAddress(emailData.getRecipientEmail());
-        recipient.setEmailAddress(emailAddress);
+        SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
+        sendMailRequest.setMessage(message);
+        sendMailRequest.setSaveToSentItems(true);
 
-        // Create the post with newParticipants (external recipients)
-        Post post = new Post();
-        post.setBody(postBody);
-        post.setNewParticipants(List.of(recipient));
-
-        // Handle attachments for group conversation
-        if (attachments != null && !attachments.isEmpty()) {
-            post.setAttachments(attachments);
-        }
-
-        // Create the thread
-        ConversationThread thread = new ConversationThread();
-        thread.setPosts(List.of(post));
-
-        // Create the conversation
-        Conversation conversation = new Conversation();
-        conversation.setTopic(subject);
-        conversation.setThreads(List.of(thread));
-
-        // Post the conversation to the group
-        logger.debug("Sending email via group conversation API (group ID: {})", groupId);
-        graphClient.groups().byGroupId(groupId).conversations().post(conversation);
+        logger.debug("Sending email via user '{}' on behalf of group '{}'", sendingUser, groupEmail);
+        graphClient.users().byUserId(sendingUser).sendMail().post(sendMailRequest);
     }
 
     /**
@@ -208,8 +191,12 @@ public class EmailService {
      */
     private long parseRetryAfter(ApiException e, long defaultDelayMs) {
         // Try to extract Retry-After from response headers
-        var retryAfterValues = e.getResponseHeaders().get("Retry-After");
-        if (!retryAfterValues.isEmpty()) {
+        var headers = e.getResponseHeaders();
+        if (headers == null) {
+            return defaultDelayMs;
+        }
+        var retryAfterValues = headers.get("Retry-After");
+        if (retryAfterValues != null && !retryAfterValues.isEmpty()) {
             try {
                 // Retry-After can be in seconds
                 int seconds = Integer.parseInt(retryAfterValues.iterator().next());

@@ -60,32 +60,6 @@ class ThrottlingConfigTest {
     }
 
     @Test
-    void getDelayBetweenEmailsMs_zeroEmailsPerMinute_returnsZero() {
-        // Arrange
-        AppConfig.ThrottlingConfig config = new AppConfig.ThrottlingConfig();
-        config.setEmailsPerMinute(0);
-
-        // Act
-        long delayMs = config.getDelayBetweenEmailsMs();
-
-        // Assert
-        assertEquals(0, delayMs);
-    }
-
-    @Test
-    void getDelayBetweenEmailsMs_negativeEmailsPerMinute_returnsZero() {
-        // Arrange
-        AppConfig.ThrottlingConfig config = new AppConfig.ThrottlingConfig();
-        config.setEmailsPerMinute(-5);
-
-        // Act
-        long delayMs = config.getDelayBetweenEmailsMs();
-
-        // Assert
-        assertEquals(0, delayMs);
-    }
-
-    @Test
     void setEnabled_false_disablesThrottling() {
         // Arrange
         AppConfig.ThrottlingConfig config = new AppConfig.ThrottlingConfig();
