@@ -22,7 +22,7 @@ public final class EmailSenderConstants {
      * Uses a practical regex that covers most valid email formats.
      */
     public static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+            "^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9]+([.\\-][a-zA-Z0-9]+)?)+\\.[a-zA-Z]{2,}$"
     );
 
     /**
