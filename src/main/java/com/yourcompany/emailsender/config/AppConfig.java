@@ -39,6 +39,9 @@ public class AppConfig {
     @Valid
     private ThrottlingConfig throttling = new ThrottlingConfig();
 
+    @Valid
+    private ReportConfig report;
+
     private Map<String, String> fieldMappings = new HashMap<>();
 
     public MicrosoftConfig getMicrosoft() {
@@ -79,6 +82,14 @@ public class AppConfig {
 
     public void setThrottling(ThrottlingConfig throttling) {
         this.throttling = throttling != null ? throttling : new ThrottlingConfig();
+    }
+
+    public ReportConfig getReport() {
+        return report;
+    }
+
+    public void setReport(ReportConfig report) {
+        this.report = report;
     }
 
     public Map<String, String> getFieldMappings() {
@@ -355,6 +366,26 @@ public class AppConfig {
                 return 0;
             }
             return 60_000L / emailsPerMinute;
+        }
+    }
+
+    /**
+     * Report configuration for generating CSV reports of email sending results.
+     */
+    public static class ReportConfig {
+
+        /**
+         * Path to the output CSV report file.
+         * If not set, no report will be generated.
+         */
+        private String outputPath;
+
+        public String getOutputPath() {
+            return outputPath;
+        }
+
+        public void setOutputPath(String outputPath) {
+            this.outputPath = outputPath;
         }
     }
 }

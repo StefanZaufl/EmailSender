@@ -4,6 +4,7 @@ import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
 import com.yourcompany.emailsender.service.DataSourceReader;
+import com.yourcompany.emailsender.service.ReportService;
 import com.yourcompany.emailsender.service.processor.DryRunEmailProcessor;
 import com.yourcompany.emailsender.service.processor.EmailProcessingStrategy;
 import com.yourcompany.emailsender.service.processor.LiveEmailProcessor;
@@ -37,6 +38,7 @@ public class SendEmailCommand implements Callable<Integer> {
     private final List<DataSourceReader> dataSourceReaders;
     private final LiveEmailProcessor liveEmailProcessor;
     private final DryRunEmailProcessor dryRunEmailProcessor;
+    private final ReportService reportService;
 
     @Option(names = {"--dry-run"}, description = "Process everything but don't send emails - write output files to disk instead")
     private boolean dryRun;
@@ -50,11 +52,13 @@ public class SendEmailCommand implements Callable<Integer> {
     public SendEmailCommand(AppConfig appConfig,
                             List<DataSourceReader> dataSourceReaders,
                             LiveEmailProcessor liveEmailProcessor,
-                            DryRunEmailProcessor dryRunEmailProcessor) {
+                            DryRunEmailProcessor dryRunEmailProcessor,
+                            ReportService reportService) {
         this.appConfig = appConfig;
         this.dataSourceReaders = dataSourceReaders;
         this.liveEmailProcessor = liveEmailProcessor;
         this.dryRunEmailProcessor = dryRunEmailProcessor;
+        this.reportService = reportService;
     }
 
     @Override
@@ -106,6 +110,7 @@ public class SendEmailCommand implements Callable<Integer> {
                 try {
                     processor.process(emailData);
                     successCount++;
+                    reportService.recordSuccess(emailData.getRecipientEmail());
 
                     // Apply throttling delay between emails (not after the last one)
                     if (shouldThrottle && i < emailDataList.size() - 1) {
@@ -119,6 +124,7 @@ public class SendEmailCommand implements Callable<Integer> {
                     Thread.currentThread().interrupt();
                     logger.error("Email sending interrupted");
                     failures.add(new FailedEmail(emailData, "Interrupted"));
+                    reportService.recordFailure(emailData.getRecipientEmail(), "Interrupted");
                     break;
                 } catch (Exception e) {
                     logger.error("Failed to process row {}: {}", emailData.getRowNumber(), e.getMessage());
@@ -126,8 +132,12 @@ public class SendEmailCommand implements Callable<Integer> {
                         logger.error("Stack trace:", e);
                     }
                     failures.add(new FailedEmail(emailData, e.getMessage()));
+                    reportService.recordFailure(emailData.getRecipientEmail(), e.getMessage());
                 }
             }
+
+            // Write the CSV report
+            reportService.writeReport();
 
             // Report results
             printSummary(successCount, failures, emailDataList.size(), processor);
