@@ -2,13 +2,10 @@ package at.klickmagiesoftware.emailsender.service;
 
 import com.microsoft.graph.models.Attachment;
 import com.microsoft.graph.models.BodyType;
-import com.microsoft.graph.models.Conversation;
-import com.microsoft.graph.models.ConversationThread;
 import com.microsoft.graph.models.EmailAddress;
 import com.microsoft.graph.models.FileAttachment;
 import com.microsoft.graph.models.ItemBody;
 import com.microsoft.graph.models.Message;
-import com.microsoft.graph.models.Post;
 import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
@@ -83,7 +80,7 @@ public class EmailService {
     /**
      * Sends the email with retry logic for handling throttling (HTTP 429) errors.
      * Uses exponential backoff between retries.
-     * Routes to either user sendMail or group conversations API based on sender type.
+     * Routes to either user sendMail or group sendMail API based on sender type.
      */
     private void sendWithRetry(EmailData emailData, Message message, String subject, String htmlBody) {
         AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
@@ -95,7 +92,7 @@ public class EmailService {
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
                 if (senderTypeResolver.isSenderGroup()) {
-                    sendViaGroup(emailData, subject, htmlBody, message.getAttachments());
+                    sendViaGroup(message);
                 } else {
                     sendViaUser(message);
                 }
@@ -157,49 +154,22 @@ public class EmailService {
     }
 
     /**
-     * Sends email via the groups conversations API endpoint.
-     * Creates a new conversation in the group that emails the external recipient.
+     * Sends email via the groups sendMail API endpoint.
+     * Uses POST /groups/{id}/sendMail to send email from the group mailbox.
      */
-    private void sendViaGroup(EmailData emailData, String subject, String htmlBody, List<Attachment> attachments) {
+    private void sendViaGroup(Message message) {
         String groupId = senderTypeResolver.getGroupId();
         if (groupId == null) {
             throw new EmailSenderException("Group ID not resolved for sender email: " +
                     appConfig.getMicrosoft().getSenderEmail());
         }
 
-        // Create the post body
-        ItemBody postBody = new ItemBody();
-        postBody.setContentType(BodyType.Html);
-        postBody.setContent(htmlBody);
+        var sendMailRequest = new com.microsoft.graph.groups.item.sendmail.SendMailPostRequestBody();
+        sendMailRequest.setMessage(message);
+        sendMailRequest.setSaveToSentItems(true);
 
-        // Create recipient for the external email
-        Recipient recipient = new Recipient();
-        EmailAddress emailAddress = new EmailAddress();
-        emailAddress.setAddress(emailData.getRecipientEmail());
-        recipient.setEmailAddress(emailAddress);
-
-        // Create the post with newParticipants (external recipients)
-        Post post = new Post();
-        post.setBody(postBody);
-        post.setNewParticipants(List.of(recipient));
-
-        // Handle attachments for group conversation
-        if (attachments != null && !attachments.isEmpty()) {
-            post.setAttachments(attachments);
-        }
-
-        // Create the thread
-        ConversationThread thread = new ConversationThread();
-        thread.setPosts(List.of(post));
-
-        // Create the conversation
-        Conversation conversation = new Conversation();
-        conversation.setTopic(subject);
-        conversation.setThreads(List.of(thread));
-
-        // Post the conversation to the group
-        logger.debug("Sending email via group conversation API (group ID: {})", groupId);
-        graphClient.groups().byGroupId(groupId).conversations().post(conversation);
+        logger.debug("Sending email via group sendMail API (group ID: {})", groupId);
+        graphClient.groups().byGroupId(groupId).sendMail().post(sendMailRequest);
     }
 
     /**

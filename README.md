@@ -94,7 +94,7 @@ The `sender-email` in your configuration must be a valid mailbox in your Microso
 | Sender Type | API Used | Permission Required |
 |-------------|----------|---------------------|
 | User/Shared Mailbox | `POST /users/{id}/sendMail` | `Mail.Send` |
-| Group Mailbox | `POST /groups/{id}/conversations` | `Group.ReadWrite.All` |
+| Group Mailbox | `POST /groups/{id}/sendMail` | `Mail.Send` and `Group.ReadWrite.All` |
 
 ### Configuration Example
 
@@ -149,7 +149,7 @@ email-sender:
 | `Authorization_RequestDenied` | Missing admin consent | Grant admin consent for required permissions |
 | `ErrorAccessDenied` | Sender email doesn't exist or no permission | Verify the sender mailbox exists |
 | `The requested user 'x@y.com' is invalid` | Sender is a group but detected as user | Set `sender-is-group: true` in config |
-| `HTTP 403` on group conversations | Missing Group.ReadWrite.All permission | Add and grant consent for Group.ReadWrite.All |
+| `HTTP 403` on group sendMail | Missing Mail.Send or Group.ReadWrite.All permission | Add and grant consent for both Mail.Send and Group.ReadWrite.All |
 | `Sender email is neither a valid user nor group` | Email doesn't exist in tenant | Verify the sender email address |
 
 ## Build
