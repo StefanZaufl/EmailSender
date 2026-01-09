@@ -106,6 +106,13 @@ public class AppConfig {
         @NotBlank
         private String senderEmail;
 
+        /**
+         * Whether the sender email is a group mailbox. Default: null (auto-detect)
+         * Set to true for group mailboxes, false for user mailboxes.
+         * If null, the application will auto-detect by querying the Graph API.
+         */
+        private Boolean senderIsGroup;
+
         public String getTenantId() {
             return tenantId;
         }
@@ -136,6 +143,14 @@ public class AppConfig {
 
         public void setSenderEmail(String senderEmail) {
             this.senderEmail = senderEmail;
+        }
+
+        public Boolean getSenderIsGroup() {
+            return senderIsGroup;
+        }
+
+        public void setSenderIsGroup(Boolean senderIsGroup) {
+            this.senderIsGroup = senderIsGroup;
         }
     }
 

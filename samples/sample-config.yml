@@ -12,6 +12,10 @@ email-sender:
     client-secret: your-azure-client-secret
     # The email address that will appear as the sender
     sender-email: sender@yourcompany.com
+    # Whether the sender is a group mailbox (optional, default: auto-detect)
+    # Set to true for Microsoft 365 Group mailboxes, false for user mailboxes
+    # If not specified, the application will auto-detect by querying the Graph API
+    # sender-is-group: false
 
   datasource:
     # Type: 'csv' or 'excel'

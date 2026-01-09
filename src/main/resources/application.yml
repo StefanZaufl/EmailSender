@@ -28,6 +28,8 @@ email-sender:
     client-id: ${AZURE_CLIENT_ID:your-client-id}
     client-secret: ${AZURE_CLIENT_SECRET:your-client-secret}
     sender-email: ${SENDER_EMAIL:sender@company.com}
+    # Whether the sender is a group mailbox (optional, auto-detect if not set)
+    # sender-is-group: ${SENDER_IS_GROUP:}
 
   datasource:
     type: ${DATA_SOURCE_TYPE:csv}

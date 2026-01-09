@@ -2,10 +2,13 @@ package com.yourcompany.emailsender.service;
 
 import com.microsoft.graph.models.Attachment;
 import com.microsoft.graph.models.BodyType;
+import com.microsoft.graph.models.Conversation;
+import com.microsoft.graph.models.ConversationThread;
 import com.microsoft.graph.models.EmailAddress;
 import com.microsoft.graph.models.FileAttachment;
 import com.microsoft.graph.models.ItemBody;
 import com.microsoft.graph.models.Message;
+import com.microsoft.graph.models.Post;
 import com.microsoft.graph.models.Recipient;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
@@ -32,13 +35,16 @@ public class EmailService {
     private final AppConfig appConfig;
     private final TemplateService templateService;
     private final PdfGeneratorService pdfGeneratorService;
+    private final SenderTypeResolver senderTypeResolver;
 
     public EmailService(GraphServiceClient graphClient, AppConfig appConfig,
-                        TemplateService templateService, PdfGeneratorService pdfGeneratorService) {
+                        TemplateService templateService, PdfGeneratorService pdfGeneratorService,
+                        SenderTypeResolver senderTypeResolver) {
         this.graphClient = graphClient;
         this.appConfig = appConfig;
         this.templateService = templateService;
         this.pdfGeneratorService = pdfGeneratorService;
+        this.senderTypeResolver = senderTypeResolver;
     }
 
     /**
@@ -48,7 +54,9 @@ public class EmailService {
      * @param emailData the data for the email to send
      */
     public void sendEmail(EmailData emailData) {
-        logger.info("Sending email to: {} (row {})", emailData.getRecipientEmail(), emailData.getRowNumber());
+        logger.info("Sending email to: {} (row {}) via {}",
+                emailData.getRecipientEmail(), emailData.getRowNumber(),
+                senderTypeResolver.isSenderGroup() ? "group" : "user");
 
         try {
             // Process templates
@@ -60,7 +68,7 @@ public class EmailService {
             Message message = createMessage(emailData.getRecipientEmail(), subject, htmlBody, pdfAttachment);
 
             // Send via Microsoft Graph with retry logic
-            sendWithRetry(emailData, message);
+            sendWithRetry(emailData, message, subject, htmlBody);
 
             logger.info("Email sent successfully to: {} (row {})", emailData.getRecipientEmail(), emailData.getRowNumber());
 
@@ -75,22 +83,22 @@ public class EmailService {
     /**
      * Sends the email with retry logic for handling throttling (HTTP 429) errors.
      * Uses exponential backoff between retries.
+     * Routes to either user sendMail or group conversations API based on sender type.
      */
-    private void sendWithRetry(EmailData emailData, Message message) {
+    private void sendWithRetry(EmailData emailData, Message message, String subject, String htmlBody) {
         AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
         int maxRetries = throttling.isEnabled() ? throttling.getMaxRetries() : 0;
         long delayMs = throttling.getInitialRetryDelayMs();
 
-        SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
-        sendMailRequest.setMessage(message);
-        sendMailRequest.setSaveToSentItems(true);
-
-        String senderEmail = appConfig.getMicrosoft().getSenderEmail();
         Exception lastException = null;
 
         for (int attempt = 0; attempt <= maxRetries; attempt++) {
             try {
-                graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
+                if (senderTypeResolver.isSenderGroup()) {
+                    sendViaGroup(emailData, subject, htmlBody, message.getAttachments());
+                } else {
+                    sendViaUser(message);
+                }
                 return; // Success
             } catch (ApiException e) {
                 lastException = e;
@@ -131,6 +139,64 @@ public class EmailService {
         // Should not reach here, but just in case
         throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
                 " (row " + emailData.getRowNumber() + ")", lastException);
+    }
+
+    /**
+     * Sends email via the users sendMail API endpoint.
+     */
+    private void sendViaUser(Message message) {
+        SendMailPostRequestBody sendMailRequest = new SendMailPostRequestBody();
+        sendMailRequest.setMessage(message);
+        sendMailRequest.setSaveToSentItems(true);
+
+        String senderEmail = appConfig.getMicrosoft().getSenderEmail();
+        graphClient.users().byUserId(senderEmail).sendMail().post(sendMailRequest);
+    }
+
+    /**
+     * Sends email via the groups conversations API endpoint.
+     * Creates a new conversation in the group that emails the external recipient.
+     */
+    private void sendViaGroup(EmailData emailData, String subject, String htmlBody, List<Attachment> attachments) {
+        String groupId = senderTypeResolver.getGroupId();
+        if (groupId == null) {
+            throw new EmailSenderException("Group ID not resolved for sender email: " +
+                    appConfig.getMicrosoft().getSenderEmail());
+        }
+
+        // Create the post body
+        ItemBody postBody = new ItemBody();
+        postBody.setContentType(BodyType.Html);
+        postBody.setContent(htmlBody);
+
+        // Create recipient for the external email
+        Recipient recipient = new Recipient();
+        EmailAddress emailAddress = new EmailAddress();
+        emailAddress.setAddress(emailData.getRecipientEmail());
+        recipient.setEmailAddress(emailAddress);
+
+        // Create the post with newParticipants (external recipients)
+        Post post = new Post();
+        post.setBody(postBody);
+        post.setNewParticipants(List.of(recipient));
+
+        // Handle attachments for group conversation
+        if (attachments != null && !attachments.isEmpty()) {
+            post.setAttachments(attachments);
+        }
+
+        // Create the thread
+        ConversationThread thread = new ConversationThread();
+        thread.setPosts(List.of(post));
+
+        // Create the conversation
+        Conversation conversation = new Conversation();
+        conversation.setTopic(subject);
+        conversation.setThreads(List.of(thread));
+
+        // Post the conversation to the group
+        logger.debug("Sending email via group conversation API (group ID: {})", groupId);
+        graphClient.groups().byGroupId(groupId).conversations().post(conversation);
     }
 
     /**
