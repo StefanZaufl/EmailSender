@@ -326,10 +326,10 @@ class EmailServiceTest {
         EmailData emailData = createEmailData();
         ApiException throttledException = createApiException(429);
 
-        // First call throws 429, second succeeds
-        doThrow(throttledException)
-                .doNothing()
-                .when(conversationsRequestBuilder).post(any());
+        // First call throws 429, second succeeds (post returns Conversation, not void)
+        when(conversationsRequestBuilder.post(any()))
+                .thenThrow(throttledException)
+                .thenReturn(null);
 
         // Act
         long startTime = System.currentTimeMillis();
@@ -349,7 +349,7 @@ class EmailServiceTest {
         EmailData emailData = createEmailData();
         ApiException serverError = createApiException(500);
 
-        doThrow(serverError).when(conversationsRequestBuilder).post(any());
+        when(conversationsRequestBuilder.post(any())).thenThrow(serverError);
 
         // Act & Assert
         EmailSenderException exception = assertThrows(
