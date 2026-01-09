@@ -2,6 +2,7 @@ package com.yourcompany.emailsender.service;
 
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
+import com.yourcompany.emailsender.util.EmailSenderConstants;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
@@ -64,6 +65,11 @@ public class ExcelDataSourceReader implements DataSourceReader {
                     String recipientEmail = getCellValueAsString(row.getCell(recipientColumnIndex));
                     if (recipientEmail == null || recipientEmail.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowIndex + 1);
+                        continue;
+                    }
+
+                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
+                        logger.warn("Row {}: Invalid email format '{}', skipping", rowIndex + 1, recipientEmail);
                         continue;
                     }
 

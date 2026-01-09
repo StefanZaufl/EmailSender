@@ -1,11 +1,14 @@
 package com.yourcompany.emailsender.config;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -79,7 +82,7 @@ public class AppConfig {
     }
 
     public Map<String, String> getFieldMappings() {
-        return fieldMappings;
+        return Collections.unmodifiableMap(fieldMappings);
     }
 
     public void setFieldMappings(Map<String, String> fieldMappings) {
@@ -278,18 +281,22 @@ public class AppConfig {
 
         /**
          * Maximum emails per minute. Default: 30 (Exchange Online limit)
+         * Must be at least 1 to avoid divide-by-zero errors.
          */
+        @Min(value = 1, message = "emailsPerMinute must be at least 1")
         private int emailsPerMinute = 30;
 
         /**
          * Number of retry attempts when throttled (HTTP 429). Default: 3
          */
+        @Min(value = 0, message = "maxRetries cannot be negative")
         private int maxRetries = 3;
 
         /**
          * Initial delay in milliseconds before first retry. Default: 2000 (2 seconds)
          * Subsequent retries use exponential backoff (2x multiplier)
          */
+        @Positive(message = "initialRetryDelayMs must be positive")
         private long initialRetryDelayMs = 2000;
 
         public boolean isEnabled() {

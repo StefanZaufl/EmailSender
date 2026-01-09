@@ -11,12 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import com.yourcompany.emailsender.util.EmailSenderConstants;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Service for generating PDFs from Word document templates.
@@ -26,7 +27,6 @@ import java.util.regex.Pattern;
 public class PdfGeneratorService {
 
     private static final Logger logger = LoggerFactory.getLogger(PdfGeneratorService.class);
-    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final AppConfig appConfig;
 
@@ -107,7 +107,7 @@ public class PdfGeneratorService {
 
         // Get all placeholders that exist in the document
         String documentXml = documentPart.getXML();
-        Matcher matcher = PLACEHOLDER_PATTERN.matcher(documentXml);
+        Matcher matcher = EmailSenderConstants.PLACEHOLDER_PATTERN.matcher(documentXml);
 
         while (matcher.find()) {
             String placeholder = matcher.group(0);
@@ -128,7 +128,8 @@ public class PdfGeneratorService {
                 }
 
                 if (value != null) {
-                    replacements.put(placeholder, value);
+                    // Escape XML special characters to prevent XML injection
+                    replacements.put(placeholder, EmailSenderConstants.escapeXml(value));
                 } else {
                     logger.warn("No value found for placeholder '{}' in document template", placeholder);
                     replacements.put(placeholder, ""); // Replace with empty string

@@ -2,6 +2,7 @@ package com.yourcompany.emailsender.service;
 
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
+import com.yourcompany.emailsender.util.EmailSenderConstants;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -56,6 +57,11 @@ public class CsvDataSourceReader implements DataSourceReader {
                     String recipientEmail = record.get(recipientColumn);
                     if (recipientEmail == null || recipientEmail.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowNumber);
+                        continue;
+                    }
+
+                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
+                        logger.warn("Row {}: Invalid email format '{}', skipping", rowNumber, recipientEmail);
                         continue;
                     }
 

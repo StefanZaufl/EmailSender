@@ -3,6 +3,7 @@ package com.yourcompany.emailsender.service;
 import com.yourcompany.emailsender.config.AppConfig;
 import com.yourcompany.emailsender.exception.EmailSenderException;
 import com.yourcompany.emailsender.model.EmailData;
+import com.yourcompany.emailsender.util.EmailSenderConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Service for processing email templates.
@@ -26,7 +26,6 @@ import java.util.regex.Pattern;
 public class TemplateService {
 
     private static final Logger logger = LoggerFactory.getLogger(TemplateService.class);
-    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
 
     private final AppConfig appConfig;
     private final TemplateEngine templateEngine;
@@ -104,7 +103,7 @@ public class TemplateService {
         Map<String, String> fields = emailData.getFields();
         Map<String, String> fieldMappings = appConfig.getFieldMappings();
 
-        Matcher matcher = PLACEHOLDER_PATTERN.matcher(subjectTemplate);
+        Matcher matcher = EmailSenderConstants.PLACEHOLDER_PATTERN.matcher(subjectTemplate);
         while (matcher.find()) {
             String placeholder = matcher.group(0);
             String fieldName = matcher.group(1);

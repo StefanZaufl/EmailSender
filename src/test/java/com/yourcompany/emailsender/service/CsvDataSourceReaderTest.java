@@ -260,4 +260,32 @@ class CsvDataSourceReaderTest {
         assertEquals(3, result.get(0).getRowNumber()); // Jane is on row 3 (1-based, header is row 1)
         assertEquals(5, result.get(1).getRowNumber()); // Alice is on row 5
     }
+
+    @Test
+    void readData_invalidEmailFormat_skipsRow() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,notanemail,Acme Corp,Yes
+                Jane Smith,jane@example.com,Tech Inc,Yes
+                Bob Wilson,user@,Global Ltd,Yes
+                Alice Brown,alice@example.com,StartupXYZ,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - only valid emails should be included
+        assertEquals(2, result.size());
+        assertEquals("jane@example.com", result.get(0).getRecipientEmail());
+        assertEquals("alice@example.com", result.get(1).getRecipientEmail());
+    }
 }
