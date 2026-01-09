@@ -12,6 +12,8 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import picocli.CommandLine;
 import picocli.CommandLine.IFactory;
 
+import java.util.Arrays;
+
 /**
  * Main application class for the Email Sender CLI tool.
  * Uses Spring Boot with Picocli for command-line interface handling.
@@ -46,9 +48,35 @@ public class EmailSenderApplication implements CommandLineRunner, ExitCodeGenera
 
     @Override
     public void run(String... args) {
+        // Filter out Spring Boot arguments before passing to picocli
+        String[] filteredArgs = filterSpringArguments(args);
         exitCode = new CommandLine(sendEmailCommand, factory)
                 .setCaseInsensitiveEnumValuesAllowed(true)
-                .execute(args);
+                .execute(filteredArgs);
+    }
+
+    /**
+     * Filters out Spring Boot-specific command-line arguments that should not be
+     * passed to picocli. Spring Boot processes these arguments during startup,
+     * but they would cause "unknown option" errors in picocli.
+     *
+     * @param args the original command-line arguments
+     * @return filtered arguments without Spring Boot-specific options
+     */
+    private String[] filterSpringArguments(String[] args) {
+        return Arrays.stream(args)
+                .filter(arg -> !isSpringArgument(arg))
+                .toArray(String[]::new);
+    }
+
+    /**
+     * Checks if an argument is a Spring Boot-specific argument.
+     *
+     * @param arg the argument to check
+     * @return true if the argument is Spring Boot-specific
+     */
+    private boolean isSpringArgument(String arg) {
+        return arg.startsWith("--spring.") || arg.startsWith("-Dspring.");
     }
 
     @Override
