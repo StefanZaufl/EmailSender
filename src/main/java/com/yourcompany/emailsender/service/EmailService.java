@@ -129,6 +129,9 @@ public class EmailService {
                     throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
                             " (row " + emailData.getRowNumber() + ") - HTTP " + statusCode, e);
                 }
+            } catch (EmailSenderException e) {
+                // Rethrow our own exceptions without wrapping
+                throw e;
             } catch (Exception e) {
                 // Non-API exception - don't retry
                 throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
