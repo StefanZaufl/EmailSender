@@ -272,7 +272,6 @@ class ReportServiceTest {
         microsoftConfig.setTenantId("test-tenant");
         microsoftConfig.setClientId("test-client");
         microsoftConfig.setClientSecret("test-secret");
-        microsoftConfig.setSenderEmail("sender@example.com");
         config.setMicrosoft(microsoftConfig);
 
         AppConfig.DatasourceConfig datasourceConfig = new AppConfig.DatasourceConfig();
@@ -288,6 +287,7 @@ class ReportServiceTest {
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
+        emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Test Subject");
         emailConfig.setRecipientColumn("Email");
         config.setEmail(emailConfig);
