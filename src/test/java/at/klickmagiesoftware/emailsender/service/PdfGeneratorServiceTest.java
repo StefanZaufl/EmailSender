@@ -443,8 +443,12 @@ class PdfGeneratorServiceTest {
         run1.getContent().add(text1);
         paragraph1.getContent().add(run1);
 
-        // Run 2: "_" (simulating different formatting)
+        // Run 2: "_" (simulating different formatting - bold)
         org.docx4j.wml.R run2 = factory.createR();
+        org.docx4j.wml.RPr rPr = factory.createRPr();
+        org.docx4j.wml.BooleanDefaultTrue bold = factory.createBooleanDefaultTrue();
+        rPr.setB(bold);
+        run2.setRPr(rPr);
         org.docx4j.wml.Text text2 = factory.createText();
         text2.setValue("_");
         run2.getContent().add(text2);
