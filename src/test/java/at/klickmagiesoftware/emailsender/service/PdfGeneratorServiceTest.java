@@ -428,20 +428,36 @@ class PdfGeneratorServiceTest {
         WordprocessingMLPackage wordPackage = WordprocessingMLPackage.createPackage();
         MainDocumentPart mainPart = wordPackage.getMainDocumentPart();
 
-        // Add normal text first
-        mainPart.addParagraphOfText("Welcome document");
-
-        // Get the document XML and manually inject an interrupted placeholder
+        // Create a paragraph with the placeholder split across multiple runs
         // This simulates what Word does when it applies formatting mid-placeholder
-        String xml = mainPart.getXML();
+        // Structure: <w:p><w:r><w:t>Hello {{first</w:t></w:r><w:r><w:t>_</w:t></w:r><w:r><w:t>name}}!</w:t></w:r></w:p>
+        org.docx4j.wml.ObjectFactory factory = new org.docx4j.wml.ObjectFactory();
 
-        // Replace the content with one that has an interrupted placeholder
-        // Simulating {{first_name}} being split as {{first<w:r><w:t>_</w:t></w:r>name}}
-        String newXml = xml.replace("Welcome document",
-                "Hello {{first<w:r><w:t>_</w:t></w:r>name}}! Welcome to {{company}}.");
+        // First paragraph with interrupted placeholder
+        org.docx4j.wml.P paragraph1 = factory.createP();
 
-        mainPart.setContents((org.docx4j.wml.Document)
-                org.docx4j.XmlUtils.unmarshalString(newXml));
+        // Run 1: "Hello {{first"
+        org.docx4j.wml.R run1 = factory.createR();
+        org.docx4j.wml.Text text1 = factory.createText();
+        text1.setValue("Hello {{first");
+        run1.getContent().add(text1);
+        paragraph1.getContent().add(run1);
+
+        // Run 2: "_" (simulating different formatting)
+        org.docx4j.wml.R run2 = factory.createR();
+        org.docx4j.wml.Text text2 = factory.createText();
+        text2.setValue("_");
+        run2.getContent().add(text2);
+        paragraph1.getContent().add(run2);
+
+        // Run 3: "name}}! Welcome to {{company}}."
+        org.docx4j.wml.R run3 = factory.createR();
+        org.docx4j.wml.Text text3 = factory.createText();
+        text3.setValue("name}}! Welcome to {{company}}.");
+        run3.getContent().add(text3);
+        paragraph1.getContent().add(run3);
+
+        mainPart.getContent().add(paragraph1);
 
         wordPackage.save(new File(docxPath.toString()));
 
