@@ -3,13 +3,7 @@ package at.klickmagiesoftware.emailsender.service;
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
 import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
-import org.apache.poi.ss.usermodel.DataFormatter;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -45,8 +39,9 @@ public class ExcelDataSourceReader implements DataSourceReader {
         try (InputStream inputStream = new FileInputStream(path);
              Workbook workbook = WorkbookFactory.create(inputStream)) {
 
+            FormulaEvaluator formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
             Sheet sheet = getSheet(workbook, sheetName, path);
-            List<String> headers = readHeaders(sheet);
+            List<String> headers = readHeaders(sheet, formulaEvaluator);
             validateHeaders(headers, processColumn, recipientColumn, path);
 
             int processColumnIndex = headers.indexOf(processColumn);
@@ -59,10 +54,10 @@ public class ExcelDataSourceReader implements DataSourceReader {
                     continue;
                 }
 
-                String processColumnValue = getCellValueAsString(row.getCell(processColumnIndex));
+                String processColumnValue = getCellValueAsString(row.getCell(processColumnIndex), formulaEvaluator);
 
                 if (processValue.equalsIgnoreCase(processColumnValue)) {
-                    String recipientEmail = getCellValueAsString(row.getCell(recipientColumnIndex));
+                    String recipientEmail = getCellValueAsString(row.getCell(recipientColumnIndex), formulaEvaluator);
                     if (recipientEmail == null || recipientEmail.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowIndex + 1);
                         continue;
@@ -76,7 +71,7 @@ public class ExcelDataSourceReader implements DataSourceReader {
                     Map<String, String> fields = new HashMap<>();
                     for (int colIndex = 0; colIndex < headers.size(); colIndex++) {
                         Cell cell = row.getCell(colIndex);
-                        fields.put(headers.get(colIndex), getCellValueAsString(cell));
+                        fields.put(headers.get(colIndex), getCellValueAsString(cell, formulaEvaluator));
                     }
 
                     emailDataList.add(new EmailData(recipientEmail.trim(), fields, rowIndex + 1));
@@ -110,7 +105,7 @@ public class ExcelDataSourceReader implements DataSourceReader {
         return sheet;
     }
 
-    private List<String> readHeaders(Sheet sheet) {
+    private List<String> readHeaders(Sheet sheet, FormulaEvaluator formulaEvaluator) {
         Row headerRow = sheet.getRow(0);
         if (headerRow == null) {
             throw new EmailSenderException("Excel file has no header row");
@@ -119,7 +114,7 @@ public class ExcelDataSourceReader implements DataSourceReader {
         List<String> headers = new ArrayList<>();
         for (int i = 0; i < headerRow.getLastCellNum(); i++) {
             Cell cell = headerRow.getCell(i);
-            String headerValue = getCellValueAsString(cell);
+            String headerValue = getCellValueAsString(cell, formulaEvaluator);
             if (headerValue != null && !headerValue.isBlank()) {
                 headers.add(headerValue.trim());
             }
@@ -127,20 +122,8 @@ public class ExcelDataSourceReader implements DataSourceReader {
         return headers;
     }
 
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) {
-            return "";
-        }
-        if (cell.getCellType() == CellType.FORMULA) {
-            // For formula cells, get the cached value
-            return switch (cell.getCachedFormulaResultType()) {
-                case NUMERIC -> dataFormatter.formatCellValue(cell);
-                case STRING -> cell.getStringCellValue();
-                case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-                default -> "";
-            };
-        }
-        return dataFormatter.formatCellValue(cell);
+    private String getCellValueAsString(Cell cell, FormulaEvaluator formulaEvaluator) {
+        return dataFormatter.formatCellValue(cell, formulaEvaluator);
     }
 
     private void validateHeaders(List<String> headers, String processColumn,
