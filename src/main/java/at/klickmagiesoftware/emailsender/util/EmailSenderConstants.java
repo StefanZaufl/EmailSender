@@ -13,9 +13,48 @@ public final class EmailSenderConstants {
 
     /**
      * Pattern for matching {{placeholder}} syntax in templates.
-     * Supports word characters (a-z, A-Z, 0-9, _).
+     * Supports word characters (a-z, A-Z, 0-9, _), German special characters (äöüÄÖÜß), and hyphens (-).
      */
-    public static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{(\\w+)}}");
+    public static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{([\\w\\-äöüÄÖÜß]+)}}");
+
+    /**
+     * Pattern for matching XML tags (used for stripping tags from placeholders).
+     */
+    public static final Pattern XML_TAG_PATTERN = Pattern.compile("<[^>]+>");
+
+    /**
+     * Pattern for matching placeholders that may be interrupted by XML tags.
+     * This matches {{ followed by any content (including XML tags) until }}.
+     */
+    public static final Pattern INTERRUPTED_PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{([^}]*?)}}");
+
+    /**
+     * Strips XML tags from a string.
+     * Used to clean up placeholders that may be interrupted by formatting tags.
+     *
+     * @param input the string potentially containing XML tags
+     * @return the string with all XML tags removed
+     */
+    public static String stripXmlTags(String input) {
+        if (input == null) {
+            return "";
+        }
+        return XML_TAG_PATTERN.matcher(input).replaceAll("");
+    }
+
+    /**
+     * Checks if a field name contains only valid placeholder characters.
+     * Valid characters are: word characters (a-z, A-Z, 0-9, _), German special characters (äöüÄÖÜß), and hyphens (-).
+     *
+     * @param fieldName the field name to validate
+     * @return true if the field name contains only valid characters
+     */
+    public static boolean isValidPlaceholderFieldName(String fieldName) {
+        if (fieldName == null || fieldName.isEmpty()) {
+            return false;
+        }
+        return fieldName.matches("[\\w\\-äöüÄÖÜß]+");
+    }
 
     /**
      * Pattern for validating email addresses.
