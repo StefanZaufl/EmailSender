@@ -7,7 +7,7 @@
 
     <groupId>at.klick-magie-software</groupId>
     <artifactId>email-sender-cli</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <parent>
