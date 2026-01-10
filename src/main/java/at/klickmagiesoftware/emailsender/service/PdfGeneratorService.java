@@ -15,7 +15,8 @@ import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 
@@ -105,12 +106,14 @@ public class PdfGeneratorService {
         // Get the document XML once for both finding and replacing placeholders
         String xmlContent = documentPart.getXML();
 
+        // Collect all replacements with their positions (start, end, replacement value)
+        List<int[]> positions = new ArrayList<>();
+        List<String> replacementValues = new ArrayList<>();
+
         // Use the interrupted placeholder pattern to find all placeholders (including those with XML tags)
         Matcher matcher = EmailSenderConstants.INTERRUPTED_PLACEHOLDER_PATTERN.matcher(xmlContent);
-        StringBuffer result = new StringBuffer();
 
         while (matcher.find()) {
-            String originalPlaceholder = matcher.group(0); // The full placeholder as it appears in the document
             String rawFieldContent = matcher.group(1);     // Content between {{ and }}
 
             // Strip any XML tags from the field name to get the clean field name
@@ -119,8 +122,6 @@ public class PdfGeneratorService {
             // Validate the clean field name
             if (!EmailSenderConstants.isValidPlaceholderFieldName(cleanFieldName)) {
                 logger.debug("Skipping invalid placeholder content: '{}'", rawFieldContent);
-                // Keep the original text unchanged
-                matcher.appendReplacement(result, Matcher.quoteReplacement(originalPlaceholder));
                 continue;
             }
 
@@ -128,6 +129,7 @@ public class PdfGeneratorService {
 
             // Build the clean placeholder for field mapping lookup
             String cleanPlaceholder = "{{" + cleanFieldName + "}}";
+            String originalPlaceholder = matcher.group(0);
 
             // First check if there's a field mapping for this placeholder (using the clean version)
             if (fieldMappings.containsKey(cleanPlaceholder)) {
@@ -145,18 +147,29 @@ public class PdfGeneratorService {
                 value = fields.get(cleanFieldName);
             }
 
+            // Record the position and replacement value
+            positions.add(new int[]{matcher.start(), matcher.end()});
+
             if (value != null) {
                 // Escape XML special characters to prevent XML injection
-                String escapedValue = EmailSenderConstants.escapeXml(value);
-                matcher.appendReplacement(result, Matcher.quoteReplacement(escapedValue));
-                logger.debug("Replaced placeholder '{}' (field: '{}') with value", originalPlaceholder, cleanFieldName);
+                replacementValues.add(EmailSenderConstants.escapeXml(value));
+                logger.debug("Will replace placeholder at [{}-{}] (field: '{}') with value",
+                        matcher.start(), matcher.end(), cleanFieldName);
             } else {
                 logger.warn("No value found for placeholder '{}' (field name: '{}') in document template",
                         originalPlaceholder, cleanFieldName);
-                matcher.appendReplacement(result, ""); // Replace with empty string
+                replacementValues.add(""); // Replace with empty string
             }
         }
-        matcher.appendTail(result);
+
+        // Replace from back to front so positions remain valid
+        StringBuilder result = new StringBuilder(xmlContent);
+        for (int i = positions.size() - 1; i >= 0; i--) {
+            int start = positions.get(i)[0];
+            int end = positions.get(i)[1];
+            String replacement = replacementValues.get(i);
+            result.replace(start, end, replacement);
+        }
 
         // Apply the modified XML back to the document
         documentPart.setContents((org.docx4j.wml.Document) XmlUtils.unmarshalString(result.toString()));
