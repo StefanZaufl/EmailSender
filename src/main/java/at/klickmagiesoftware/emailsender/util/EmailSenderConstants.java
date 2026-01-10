@@ -29,17 +29,20 @@ public final class EmailSenderConstants {
     public static final Pattern INTERRUPTED_PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{([^}]*?)}}");
 
     /**
-     * Strips XML tags from a string.
+     * Strips XML tags and whitespace from a string.
      * Used to clean up placeholders that may be interrupted by formatting tags.
+     * Also removes any whitespace/newlines that may appear between XML elements.
      *
      * @param input the string potentially containing XML tags
-     * @return the string with all XML tags removed
+     * @return the string with all XML tags and whitespace removed
      */
     public static String stripXmlTags(String input) {
         if (input == null) {
             return "";
         }
-        return XML_TAG_PATTERN.matcher(input).replaceAll("");
+        // First remove XML tags, then remove all whitespace (spaces, tabs, newlines)
+        String withoutTags = XML_TAG_PATTERN.matcher(input).replaceAll("");
+        return withoutTags.replaceAll("\\s+", "");
     }
 
     /**

@@ -221,6 +221,18 @@ class EmailSenderConstantsTest {
         assertEquals("test_value", EmailSenderConstants.stripXmlTags("test<span class=\"bold\">_value</span>"));
     }
 
+    @Test
+    void stripXmlTags_removesWhitespaceAndNewlines() {
+        // Simulates what docx4j outputs with newlines between XML elements
+        String input = "first</w:t>\n    </w:r>\n    <w:r>\n      <w:t>_</w:t>\n    </w:r>\n    <w:r>\n      <w:t>name";
+        assertEquals("first_name", EmailSenderConstants.stripXmlTags(input));
+    }
+
+    @Test
+    void stripXmlTags_removesTabsAndSpaces() {
+        assertEquals("first_name", EmailSenderConstants.stripXmlTags("first\t<b>\n_\t</b> name"));
+    }
+
     // isValidPlaceholderFieldName tests
 
     @Test
