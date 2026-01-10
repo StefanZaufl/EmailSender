@@ -15,7 +15,8 @@ import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 
@@ -102,55 +103,75 @@ public class PdfGeneratorService {
         Map<String, String> fields = emailData.getFields();
         Map<String, String> fieldMappings = appConfig.getFieldMappings();
 
-        // Build the replacement map
-        Map<String, String> replacements = new HashMap<>();
+        // Get the document XML once for both finding and replacing placeholders
+        String xmlContent = documentPart.getXML();
 
-        // Get all placeholders that exist in the document
-        String documentXml = documentPart.getXML();
-        Matcher matcher = EmailSenderConstants.PLACEHOLDER_PATTERN.matcher(documentXml);
+        // Collect all replacements with their positions (start, end, replacement value)
+        List<int[]> positions = new ArrayList<>();
+        List<String> replacementValues = new ArrayList<>();
+
+        // Use the interrupted placeholder pattern to find all placeholders (including those with XML tags)
+        Matcher matcher = EmailSenderConstants.INTERRUPTED_PLACEHOLDER_PATTERN.matcher(xmlContent);
 
         while (matcher.find()) {
-            String placeholder = matcher.group(0);
-            String fieldName = matcher.group(1);
+            String rawFieldContent = matcher.group(1);     // Content between {{ and }}
 
-            if (!replacements.containsKey(placeholder)) {
-                String value = null;
+            // Strip any XML tags from the field name to get the clean field name
+            String cleanFieldName = EmailSenderConstants.stripXmlTags(rawFieldContent);
 
-                // First check if there's a field mapping for this placeholder
-                if (fieldMappings.containsKey(placeholder)) {
-                    String sourceColumn = fieldMappings.get(placeholder);
-                    value = fields.get(sourceColumn);
-                }
+            // Validate the clean field name
+            if (!EmailSenderConstants.isValidPlaceholderFieldName(cleanFieldName)) {
+                logger.debug("Skipping invalid placeholder content: '{}'", rawFieldContent);
+                continue;
+            }
 
-                // If no mapping or mapping didn't resolve, try direct field name
-                if (value == null) {
-                    value = fields.get(fieldName);
-                }
+            String value = null;
 
-                if (value != null) {
-                    // Escape XML special characters to prevent XML injection
-                    replacements.put(placeholder, EmailSenderConstants.escapeXml(value));
-                } else {
-                    logger.warn("No value found for placeholder '{}' in document template", placeholder);
-                    replacements.put(placeholder, ""); // Replace with empty string
-                }
+            // Build the clean placeholder for field mapping lookup
+            String cleanPlaceholder = "{{" + cleanFieldName + "}}";
+            String originalPlaceholder = matcher.group(0);
+
+            // First check if there's a field mapping for this placeholder (using the clean version)
+            if (fieldMappings.containsKey(cleanPlaceholder)) {
+                String sourceColumn = fieldMappings.get(cleanPlaceholder);
+                value = fields.get(sourceColumn);
+            }
+            // Also check with the original placeholder in case it was mapped that way
+            if (value == null && fieldMappings.containsKey(originalPlaceholder)) {
+                String sourceColumn = fieldMappings.get(originalPlaceholder);
+                value = fields.get(sourceColumn);
+            }
+
+            // If no mapping or mapping didn't resolve, try direct field name
+            if (value == null) {
+                value = fields.get(cleanFieldName);
+            }
+
+            // Record the position and replacement value
+            positions.add(new int[]{matcher.start(), matcher.end()});
+
+            if (value != null) {
+                // Escape XML special characters to prevent XML injection
+                replacementValues.add(EmailSenderConstants.escapeXml(value));
+                logger.debug("Will replace placeholder at [{}-{}] (field: '{}') with value",
+                        matcher.start(), matcher.end(), cleanFieldName);
+            } else {
+                logger.warn("No value found for placeholder '{}' (field name: '{}') in document template",
+                        originalPlaceholder, cleanFieldName);
+                replacementValues.add(""); // Replace with empty string
             }
         }
 
-        // Perform the replacements
-        for (Map.Entry<String, String> entry : replacements.entrySet()) {
-            documentPart.variableReplace(
-                    Map.of(entry.getKey().replace("{{", "").replace("}}", ""), entry.getValue())
-            );
-        }
-
-        // Direct string replacement for {{variable}} placeholders
-        String xmlContent = documentPart.getXML();
-        for (Map.Entry<String, String> entry : replacements.entrySet()) {
-            xmlContent = xmlContent.replace(entry.getKey(), entry.getValue());
+        // Replace from back to front so positions remain valid
+        StringBuilder result = new StringBuilder(xmlContent);
+        for (int i = positions.size() - 1; i >= 0; i--) {
+            int start = positions.get(i)[0];
+            int end = positions.get(i)[1];
+            String replacement = replacementValues.get(i);
+            result.replace(start, end, replacement);
         }
 
         // Apply the modified XML back to the document
-        documentPart.setContents((org.docx4j.wml.Document)XmlUtils.unmarshalString(xmlContent));
+        documentPart.setContents((org.docx4j.wml.Document) XmlUtils.unmarshalString(result.toString()));
     }
 }

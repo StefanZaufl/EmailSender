@@ -273,6 +273,101 @@ class PdfGeneratorServiceTest {
         assertTrue(result2.length > 0);
     }
 
+    @Test
+    void generateDocx_templateWithGermanCharacterPlaceholders_replacesValues() throws Exception {
+        // Arrange
+        Path docxPath = createDocxTemplateWithGermanPlaceholders();
+        appConfig.getTemplates().setAttachment(docxPath.toString());
+
+        PdfGeneratorService service = new PdfGeneratorService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("größe", "180cm");
+        fields.put("vor-name", "Hans");
+        fields.put("Änderung_datum", "01.01.2024");
+        EmailData emailData = new EmailData("test@example.com", fields, 1);
+
+        // Act
+        byte[] result = service.generateDocx(emailData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.length > 0);
+
+        // Verify the replacements were made by loading the generated docx
+        WordprocessingMLPackage generatedDoc = WordprocessingMLPackage.load(
+                new java.io.ByteArrayInputStream(result));
+        String docContent = generatedDoc.getMainDocumentPart().getXML();
+
+        assertTrue(docContent.contains("180cm"), "Expected '180cm' to be in the document");
+        assertTrue(docContent.contains("Hans"), "Expected 'Hans' to be in the document");
+        assertTrue(docContent.contains("01.01.2024"), "Expected '01.01.2024' to be in the document");
+        assertFalse(docContent.contains("{{größe}}"), "Placeholder {{größe}} should be replaced");
+        assertFalse(docContent.contains("{{vor-name}}"), "Placeholder {{vor-name}} should be replaced");
+    }
+
+    @Test
+    void generateDocx_templateWithHyphenPlaceholders_replacesValues() throws Exception {
+        // Arrange
+        Path docxPath = createDocxTemplateWithHyphenPlaceholders();
+        appConfig.getTemplates().setAttachment(docxPath.toString());
+
+        PdfGeneratorService service = new PdfGeneratorService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("first-name", "John");
+        fields.put("last-name", "Doe");
+        fields.put("phone-number", "+49 123 456789");
+        EmailData emailData = new EmailData("test@example.com", fields, 1);
+
+        // Act
+        byte[] result = service.generateDocx(emailData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.length > 0);
+
+        // Verify the replacements were made
+        WordprocessingMLPackage generatedDoc = WordprocessingMLPackage.load(
+                new java.io.ByteArrayInputStream(result));
+        String docContent = generatedDoc.getMainDocumentPart().getXML();
+
+        assertTrue(docContent.contains("John"), "Expected 'John' to be in the document");
+        assertTrue(docContent.contains("Doe"), "Expected 'Doe' to be in the document");
+        assertFalse(docContent.contains("{{first-name}}"), "Placeholder {{first-name}} should be replaced");
+        assertFalse(docContent.contains("{{last-name}}"), "Placeholder {{last-name}} should be replaced");
+    }
+
+    @Test
+    void generateDocx_templateWithXmlInterruptedPlaceholders_replacesValues() throws Exception {
+        // Arrange
+        // This test simulates what happens when Word splits a placeholder with formatting
+        Path docxPath = createDocxTemplateWithXmlInterruptedPlaceholders();
+        appConfig.getTemplates().setAttachment(docxPath.toString());
+
+        PdfGeneratorService service = new PdfGeneratorService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("first_name", "Maria");
+        fields.put("company", "TechCorp");
+        EmailData emailData = new EmailData("test@example.com", fields, 1);
+
+        // Act
+        byte[] result = service.generateDocx(emailData);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.length > 0);
+
+        // Verify the replacements were made
+        WordprocessingMLPackage generatedDoc = WordprocessingMLPackage.load(
+                new java.io.ByteArrayInputStream(result));
+        String docContent = generatedDoc.getMainDocumentPart().getXML();
+
+        assertTrue(docContent.contains("Maria"), "Expected 'Maria' to be in the document");
+        assertTrue(docContent.contains("TechCorp"), "Expected 'TechCorp' to be in the document");
+    }
+
     private Path createSimpleDocxTemplate() throws Exception {
         Path docxPath = tempDir.resolve("simple-template.docx");
 
@@ -293,6 +388,80 @@ class PdfGeneratorServiceTest {
         mainPart.addParagraphOfText("Hello {{name}}!");
         mainPart.addParagraphOfText("Welcome to {{company}}.");
         mainPart.addParagraphOfText("This is your personalized document.");
+
+        wordPackage.save(new File(docxPath.toString()));
+
+        return docxPath;
+    }
+
+    private Path createDocxTemplateWithGermanPlaceholders() throws Exception {
+        Path docxPath = tempDir.resolve("template-with-german-placeholders.docx");
+
+        WordprocessingMLPackage wordPackage = WordprocessingMLPackage.createPackage();
+        MainDocumentPart mainPart = wordPackage.getMainDocumentPart();
+        mainPart.addParagraphOfText("Ihre Größe: {{größe}}");
+        mainPart.addParagraphOfText("Vorname: {{vor-name}}");
+        mainPart.addParagraphOfText("Änderungsdatum: {{Änderung_datum}}");
+
+        wordPackage.save(new File(docxPath.toString()));
+
+        return docxPath;
+    }
+
+    private Path createDocxTemplateWithHyphenPlaceholders() throws Exception {
+        Path docxPath = tempDir.resolve("template-with-hyphen-placeholders.docx");
+
+        WordprocessingMLPackage wordPackage = WordprocessingMLPackage.createPackage();
+        MainDocumentPart mainPart = wordPackage.getMainDocumentPart();
+        mainPart.addParagraphOfText("First name: {{first-name}}");
+        mainPart.addParagraphOfText("Last name: {{last-name}}");
+        mainPart.addParagraphOfText("Phone: {{phone-number}}");
+
+        wordPackage.save(new File(docxPath.toString()));
+
+        return docxPath;
+    }
+
+    private Path createDocxTemplateWithXmlInterruptedPlaceholders() throws Exception {
+        Path docxPath = tempDir.resolve("template-with-interrupted-placeholders.docx");
+
+        WordprocessingMLPackage wordPackage = WordprocessingMLPackage.createPackage();
+        MainDocumentPart mainPart = wordPackage.getMainDocumentPart();
+
+        // Create a paragraph with the placeholder split across multiple runs
+        // This simulates what Word does when it applies formatting mid-placeholder
+        // Structure: <w:p><w:r><w:t>Hello {{first</w:t></w:r><w:r><w:t>_</w:t></w:r><w:r><w:t>name}}!</w:t></w:r></w:p>
+        org.docx4j.wml.ObjectFactory factory = new org.docx4j.wml.ObjectFactory();
+
+        // First paragraph with interrupted placeholder
+        org.docx4j.wml.P paragraph1 = factory.createP();
+
+        // Run 1: "Hello {{first"
+        org.docx4j.wml.R run1 = factory.createR();
+        org.docx4j.wml.Text text1 = factory.createText();
+        text1.setValue("Hello {{first");
+        run1.getContent().add(text1);
+        paragraph1.getContent().add(run1);
+
+        // Run 2: "_" (simulating different formatting - bold)
+        org.docx4j.wml.R run2 = factory.createR();
+        org.docx4j.wml.RPr rPr = factory.createRPr();
+        org.docx4j.wml.BooleanDefaultTrue bold = factory.createBooleanDefaultTrue();
+        rPr.setB(bold);
+        run2.setRPr(rPr);
+        org.docx4j.wml.Text text2 = factory.createText();
+        text2.setValue("_");
+        run2.getContent().add(text2);
+        paragraph1.getContent().add(run2);
+
+        // Run 3: "name}}! Welcome to {{company}}."
+        org.docx4j.wml.R run3 = factory.createR();
+        org.docx4j.wml.Text text3 = factory.createText();
+        text3.setValue("name}}! Welcome to {{company}}.");
+        run3.getContent().add(text3);
+        paragraph1.getContent().add(run3);
+
+        mainPart.getContent().add(paragraph1);
 
         wordPackage.save(new File(docxPath.toString()));
 
