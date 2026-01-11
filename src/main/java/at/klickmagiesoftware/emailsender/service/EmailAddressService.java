@@ -75,36 +75,4 @@ public class EmailAddressService {
 
         return validEmails;
     }
-
-    /**
-     * Parses a potentially semicolon-separated list of email addresses and validates each one.
-     * This overload does not log row numbers and is useful for validation outside of data import.
-     *
-     * @param recipientValue the raw recipient value (may contain multiple emails separated by semicolons)
-     * @return a list of valid email addresses (may be empty if all are invalid)
-     */
-    public List<String> parseAndValidateRecipients(String recipientValue) {
-        List<String> validEmails = new ArrayList<>();
-
-        if (recipientValue == null || recipientValue.isBlank()) {
-            return validEmails;
-        }
-
-        String[] recipients = recipientValue.split(RECIPIENT_DELIMITER);
-
-        for (String recipient : recipients) {
-            String trimmedEmail = recipient.trim();
-            if (trimmedEmail.isEmpty()) {
-                continue;
-            }
-
-            if (isValidEmail(trimmedEmail)) {
-                validEmails.add(trimmedEmail);
-            } else {
-                logger.warn("Invalid email format '{}', skipping", trimmedEmail);
-            }
-        }
-
-        return validEmails;
-    }
 }
