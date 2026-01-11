@@ -72,7 +72,7 @@ public class DryRunEmailProcessor implements EmailProcessingStrategy {
     }
 
     private void writeOutputFiles(EmailService.EmailContent content) throws IOException {
-        // Generate safe filename from email
+        // Generate safe filename from first email (for uniqueness)
         String safeEmail = content.recipientEmail().replaceAll("[^a-zA-Z0-9@.]", "_");
         String baseFilename = String.format("row%d_%s", content.rowNumber(), safeEmail);
 
@@ -86,13 +86,15 @@ public class DryRunEmailProcessor implements EmailProcessingStrategy {
         Files.write(pdfPath, content.pdfAttachment());
         logger.info("  -> Written: {}", pdfPath);
 
-        // Write email metadata
+        // Write email metadata with all recipients
         Path metaPath = outputDirectory.resolve(baseFilename + "_meta.txt");
+        String recipientsDisplay = content.recipientsAsString();
         String metadata = String.format("""
                 To: %s
                 Subject: %s
                 Row Number: %d
-                """, content.recipientEmail(), content.subject(), content.rowNumber());
+                Recipient Count: %d
+                """, recipientsDisplay, content.subject(), content.rowNumber(), content.recipientEmails().size());
         Files.writeString(metaPath, metadata);
         logger.info("  -> Written: {}", metaPath);
     }

@@ -288,4 +288,168 @@ class CsvDataSourceReaderTest {
         assertEquals("jane@example.com", result.get(0).getRecipientEmail());
         assertEquals("alice@example.com", result.get(1).getRecipientEmail());
     }
+
+    @Test
+    void readData_multipleRecipientsInRow_parsesAllValidEmails() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,john@example.com;jane@example.com;bob@example.com,Acme Corp,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertTrue(emailData.hasMultipleRecipients());
+        assertEquals(3, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("jane@example.com", emailData.getRecipientEmails().get(1));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(2));
+    }
+
+    @Test
+    void readData_multipleRecipientsWithInvalid_keepsOnlyValidEmails() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,john@example.com;notanemail;bob@example.com,Acme Corp,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - invalid email is skipped but valid ones are kept
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertTrue(emailData.hasMultipleRecipients());
+        assertEquals(2, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(1));
+    }
+
+    @Test
+    void readData_multipleRecipientsAllInvalid_skipsRow() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,notanemail;alsoinvalid,Acme Corp,Yes
+                Jane Smith,jane@example.com,Tech Inc,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - first row is skipped entirely, only second row is processed
+        assertEquals(1, result.size());
+        assertEquals("jane@example.com", result.getFirst().getRecipientEmail());
+    }
+
+    @Test
+    void readData_multipleRecipientsWithSpaces_trimsWhitespace() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe, john@example.com ; jane@example.com ; bob@example.com ,Acme Corp,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertEquals(3, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("jane@example.com", emailData.getRecipientEmails().get(1));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(2));
+    }
+
+    @Test
+    void readData_multipleRecipientsWithEmptyEntries_skipsEmptyEntries() throws IOException {
+        // Arrange - note the double semicolon and trailing semicolon
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,john@example.com;;bob@example.com;,Acme Corp,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertEquals(2, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(1));
+    }
+
+    @Test
+    void readData_singleRecipient_worksAsExpected() throws IOException {
+        // Arrange
+        String csvContent = """
+                FullName,Email,CompanyName,SendEmail
+                John Doe,john@example.com,Acme Corp,Yes
+                """;
+        Path csvFile = tempDir.resolve("test.csv");
+        Files.writeString(csvFile, csvContent);
+
+        // Act
+        List<EmailData> result = reader.readData(
+                csvFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - single recipient should also work
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertFalse(emailData.hasMultipleRecipients());
+        assertEquals(1, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmail());
+    }
 }

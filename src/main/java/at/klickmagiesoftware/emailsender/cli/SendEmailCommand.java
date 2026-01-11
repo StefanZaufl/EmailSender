@@ -105,12 +105,13 @@ public class SendEmailCommand implements Callable<Integer> {
 
             for (int i = 0; i < emailDataList.size(); i++) {
                 EmailData emailData = emailDataList.get(i);
-                logger.info("Processing {} of {}: {}", i + 1, emailDataList.size(), emailData.getRecipientEmail());
+                String recipientsDisplay = emailData.getRecipientsAsString();
+                logger.info("Processing {} of {}: {}", i + 1, emailDataList.size(), recipientsDisplay);
 
                 try {
                     processor.process(emailData);
                     successCount++;
-                    reportService.recordSuccess(emailData.getRecipientEmail());
+                    reportService.recordSuccess(emailData.getRecipientEmails());
 
                     // Apply throttling delay between emails (not after the last one)
                     if (shouldThrottle && i < emailDataList.size() - 1) {
@@ -125,7 +126,7 @@ public class SendEmailCommand implements Callable<Integer> {
                     Thread.currentThread().interrupt();
                     logger.error("Email sending interrupted");
                     failures.add(new FailedEmail(emailData, "Interrupted"));
-                    reportService.recordFailure(emailData.getRecipientEmail(), "Interrupted");
+                    reportService.recordFailure(emailData.getRecipientEmails(), "Interrupted");
                     break;
                 } catch (Exception e) {
                     logger.error("Failed to process row {}: {}", emailData.getRowNumber(), e.getMessage());
@@ -133,7 +134,7 @@ public class SendEmailCommand implements Callable<Integer> {
                         logger.error("Stack trace:", e);
                     }
                     failures.add(new FailedEmail(emailData, e.getMessage()));
-                    reportService.recordFailure(emailData.getRecipientEmail(), e.getMessage());
+                    reportService.recordFailure(emailData.getRecipientEmails(), e.getMessage());
                 }
             }
 
@@ -221,7 +222,7 @@ public class SendEmailCommand implements Callable<Integer> {
             for (FailedEmail failure : failures) {
                 logger.error("  Row {}: {} - {}",
                         failure.emailData.getRowNumber(),
-                        failure.emailData.getRecipientEmail(),
+                        failure.emailData.getRecipientsAsString(),
                         failure.errorMessage);
             }
         }

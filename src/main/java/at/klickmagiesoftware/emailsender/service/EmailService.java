@@ -45,14 +45,16 @@ public class EmailService {
     }
 
     /**
-     * Sends a personalized email with PDF attachment to the recipient specified in the EmailData.
+     * Sends a personalized email with PDF attachment to the recipients specified in the EmailData.
+     * Supports multiple recipients (semicolon-separated in the data source).
      * Includes retry logic with exponential backoff for handling throttling (HTTP 429) errors.
      *
      * @param emailData the data for the email to send
      */
     public void sendEmail(EmailData emailData) {
+        String recipientsDisplay = emailData.getRecipientsAsString();
         logger.info("Sending email to: {} (row {}) via {}",
-                emailData.getRecipientEmail(), emailData.getRowNumber(),
+                recipientsDisplay, emailData.getRowNumber(),
                 senderTypeResolver.isSendFromGroup() ? "group" : "user");
 
         try {
@@ -61,18 +63,18 @@ public class EmailService {
             String htmlBody = templateService.processEmailBody(emailData);
             byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
 
-            // Build the email message
-            Message message = createMessage(emailData.getRecipientEmail(), subject, htmlBody, pdfAttachment);
+            // Build the email message with all recipients
+            Message message = createMessage(emailData.getRecipientEmails(), subject, htmlBody, pdfAttachment);
 
             // Send via Microsoft Graph with retry logic
             sendWithRetry(emailData, message, subject, htmlBody);
 
-            logger.info("Email sent successfully to: {} (row {})", emailData.getRecipientEmail(), emailData.getRowNumber());
+            logger.info("Email sent successfully to: {} (row {})", recipientsDisplay, emailData.getRowNumber());
 
         } catch (EmailSenderException e) {
             throw e;
         } catch (Exception e) {
-            throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+            throw new EmailSenderException("Failed to send email to " + recipientsDisplay +
                     " (row " + emailData.getRowNumber() + ")", e);
         }
     }
@@ -86,6 +88,7 @@ public class EmailService {
         AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
         int maxRetries = throttling.isEnabled() ? throttling.getMaxRetries() : 0;
         long delayMs = throttling.getInitialRetryDelayMs();
+        String recipientsDisplay = emailData.getRecipientsAsString();
 
         Exception lastException = null;
 
@@ -105,7 +108,7 @@ public class EmailService {
                     // Throttled - retry with exponential backoff
                     long retryAfterMs = parseRetryAfter(e, delayMs);
                     logger.warn("Throttled (HTTP 429) sending to {} - retrying in {}ms (attempt {}/{})",
-                            emailData.getRecipientEmail(), retryAfterMs, attempt + 1, maxRetries);
+                            recipientsDisplay, retryAfterMs, attempt + 1, maxRetries);
 
                     try {
                         Thread.sleep(retryAfterMs);
@@ -119,11 +122,11 @@ public class EmailService {
                 } else if (statusCode == 429) {
                     // Max retries exceeded
                     throw new EmailSenderException("Max retries exceeded for email to " +
-                            emailData.getRecipientEmail() + " (row " + emailData.getRowNumber() +
+                            recipientsDisplay + " (row " + emailData.getRowNumber() +
                             ") - still being throttled after " + maxRetries + " attempts", e);
                 } else {
                     // Non-throttling error - don't retry
-                    throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+                    throw new EmailSenderException("Failed to send email to " + recipientsDisplay +
                             " (row " + emailData.getRowNumber() + ") - HTTP " + statusCode, e);
                 }
             } catch (EmailSenderException e) {
@@ -131,13 +134,13 @@ public class EmailService {
                 throw e;
             } catch (Exception e) {
                 // Non-API exception - don't retry
-                throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+                throw new EmailSenderException("Failed to send email to " + recipientsDisplay +
                         " (row " + emailData.getRowNumber() + ")", e);
             }
         }
 
         // Should not reach here, but just in case
-        throw new EmailSenderException("Failed to send email to " + emailData.getRecipientEmail() +
+        throw new EmailSenderException("Failed to send email to " + recipientsDisplay +
                 " (row " + emailData.getRowNumber() + ")", lastException);
     }
 
@@ -210,14 +213,14 @@ public class EmailService {
      * @return an EmailContent record with all processed content
      */
     public EmailContent prepareEmail(EmailData emailData) {
-        logger.info("Preparing email for: {} (row {})", emailData.getRecipientEmail(), emailData.getRowNumber());
+        logger.info("Preparing email for: {} (row {})", emailData.getRecipientsAsString(), emailData.getRowNumber());
 
         String subject = templateService.processSubject(emailData);
         String htmlBody = templateService.processEmailBody(emailData);
         byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
 
         return new EmailContent(
-                emailData.getRecipientEmail(),
+                emailData.getRecipientEmails(),
                 subject,
                 htmlBody,
                 pdfAttachment,
@@ -225,15 +228,19 @@ public class EmailService {
         );
     }
 
-    private Message createMessage(String recipientEmail, String subject, String htmlBody, byte[] pdfAttachment) {
+    private Message createMessage(List<String> recipientEmails, String subject, String htmlBody, byte[] pdfAttachment) {
         Message message = new Message();
 
-        // Set recipient
-        Recipient recipient = new Recipient();
-        EmailAddress emailAddress = new EmailAddress();
-        emailAddress.setAddress(recipientEmail);
-        recipient.setEmailAddress(emailAddress);
-        message.setToRecipients(List.of(recipient));
+        // Set recipients - support multiple recipients
+        List<Recipient> recipients = new ArrayList<>();
+        for (String recipientEmail : recipientEmails) {
+            Recipient recipient = new Recipient();
+            EmailAddress emailAddress = new EmailAddress();
+            emailAddress.setAddress(recipientEmail);
+            recipient.setEmailAddress(emailAddress);
+            recipients.add(recipient);
+        }
+        message.setToRecipients(recipients);
 
         // Set subject
         message.setSubject(subject);
@@ -260,12 +267,27 @@ public class EmailService {
 
     /**
      * Record to hold prepared email content for dry-run mode.
+     * Supports multiple recipients.
      */
     public record EmailContent(
-            String recipientEmail,
+            List<String> recipientEmails,
             String subject,
             String htmlBody,
             byte[] pdfAttachment,
             int rowNumber
-    ) {}
+    ) {
+        /**
+         * Returns the first recipient email for backwards compatibility.
+         */
+        public String recipientEmail() {
+            return recipientEmails.isEmpty() ? null : recipientEmails.getFirst();
+        }
+
+        /**
+         * Returns a comma-separated string of all recipient emails.
+         */
+        public String recipientsAsString() {
+            return String.join(", ", recipientEmails);
+        }
+    }
 }

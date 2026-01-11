@@ -47,6 +47,18 @@ public class ReportService {
     }
 
     /**
+     * Records a successful email send for multiple recipients.
+     * Each recipient is recorded as a separate success entry.
+     *
+     * @param emails the list of recipient email addresses
+     */
+    public void recordSuccess(java.util.List<String> emails) {
+        for (String email : emails) {
+            recordSuccess(email);
+        }
+    }
+
+    /**
      * Records a failed email send.
      *
      * @param email        the recipient email address
@@ -55,6 +67,19 @@ public class ReportService {
     public void recordFailure(String email, String errorMessage) {
         results.add(new EmailResult(email, false, errorMessage));
         logger.debug("Recorded failure for: {} - {}", email, errorMessage);
+    }
+
+    /**
+     * Records a failed email send for multiple recipients.
+     * Each recipient is recorded as a separate failure entry with the same error message.
+     *
+     * @param emails       the list of recipient email addresses
+     * @param errorMessage the error message describing the failure
+     */
+    public void recordFailure(java.util.List<String> emails, String errorMessage) {
+        for (String email : emails) {
+            recordFailure(email, errorMessage);
+        }
     }
 
     /**

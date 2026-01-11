@@ -20,11 +20,13 @@ import java.util.Map;
 
 /**
  * Data source reader implementation for CSV files.
+ * Supports multiple recipients per row, separated by semicolons.
  */
 @Service
 public class CsvDataSourceReader implements DataSourceReader {
 
     private static final Logger logger = LoggerFactory.getLogger(CsvDataSourceReader.class);
+    private static final String RECIPIENT_DELIMITER = ";";
 
     @Override
     public boolean supports(String type) {
@@ -54,14 +56,17 @@ public class CsvDataSourceReader implements DataSourceReader {
                 String processColumnValue = record.get(processColumn);
 
                 if (processValue.equalsIgnoreCase(processColumnValue)) {
-                    String recipientEmail = record.get(recipientColumn);
-                    if (recipientEmail == null || recipientEmail.isBlank()) {
+                    String recipientEmailValue = record.get(recipientColumn);
+                    if (recipientEmailValue == null || recipientEmailValue.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowNumber);
                         continue;
                     }
 
-                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
-                        logger.warn("Row {}: Invalid email format '{}', skipping", rowNumber, recipientEmail);
+                    // Parse semicolon-separated recipients and validate each one
+                    List<String> validEmails = parseAndValidateRecipients(recipientEmailValue, rowNumber);
+
+                    if (validEmails.isEmpty()) {
+                        logger.warn("Row {}: No valid email addresses found, skipping", rowNumber);
                         continue;
                     }
 
@@ -70,8 +75,13 @@ public class CsvDataSourceReader implements DataSourceReader {
                         fields.put(header, record.get(header));
                     }
 
-                    emailDataList.add(new EmailData(recipientEmail.trim(), fields, rowNumber));
-                    logger.debug("Row {}: Added for processing - {}", rowNumber, recipientEmail);
+                    emailDataList.add(new EmailData(validEmails, fields, rowNumber));
+                    if (validEmails.size() == 1) {
+                        logger.debug("Row {}: Added for processing - {}", rowNumber, validEmails.getFirst());
+                    } else {
+                        logger.debug("Row {}: Added for processing - {} recipients: {}",
+                                rowNumber, validEmails.size(), String.join(", ", validEmails));
+                    }
                 } else {
                     logger.debug("Row {}: Skipped ({}='{}')", rowNumber, processColumn, processColumnValue);
                 }
@@ -83,6 +93,34 @@ public class CsvDataSourceReader implements DataSourceReader {
         } catch (IOException e) {
             throw new EmailSenderException("Failed to read CSV file: " + path, e);
         }
+    }
+
+    /**
+     * Parses a potentially semicolon-separated list of email addresses and validates each one.
+     * Invalid email addresses are logged as warnings but processing continues with valid ones.
+     *
+     * @param recipientValue the raw recipient value from the data source (may contain multiple emails)
+     * @param rowNumber the row number for logging purposes
+     * @return a list of valid email addresses (may be empty if all are invalid)
+     */
+    private List<String> parseAndValidateRecipients(String recipientValue, int rowNumber) {
+        List<String> validEmails = new ArrayList<>();
+        String[] recipients = recipientValue.split(RECIPIENT_DELIMITER);
+
+        for (String recipient : recipients) {
+            String trimmedEmail = recipient.trim();
+            if (trimmedEmail.isEmpty()) {
+                continue; // Skip empty entries between semicolons
+            }
+
+            if (EmailSenderConstants.isValidEmail(trimmedEmail)) {
+                validEmails.add(trimmedEmail);
+            } else {
+                logger.warn("Row {}: Invalid email format '{}', skipping this recipient", rowNumber, trimmedEmail);
+            }
+        }
+
+        return validEmails;
     }
 
     private void validateHeaders(List<String> headers, String processColumn,

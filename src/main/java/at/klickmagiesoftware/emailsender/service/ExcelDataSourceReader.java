@@ -18,11 +18,13 @@ import java.util.Map;
 
 /**
  * Data source reader implementation for Excel files (.xlsx and .xls).
+ * Supports multiple recipients per row, separated by semicolons.
  */
 @Service
 public class ExcelDataSourceReader implements DataSourceReader {
 
     private static final Logger logger = LoggerFactory.getLogger(ExcelDataSourceReader.class);
+    private static final String RECIPIENT_DELIMITER = ";";
     private final DataFormatter dataFormatter = new DataFormatter();
 
     @Override
@@ -57,14 +59,17 @@ public class ExcelDataSourceReader implements DataSourceReader {
                 String processColumnValue = getCellValueAsString(row.getCell(processColumnIndex), formulaEvaluator);
 
                 if (processValue.equalsIgnoreCase(processColumnValue)) {
-                    String recipientEmail = getCellValueAsString(row.getCell(recipientColumnIndex), formulaEvaluator);
-                    if (recipientEmail == null || recipientEmail.isBlank()) {
+                    String recipientEmailValue = getCellValueAsString(row.getCell(recipientColumnIndex), formulaEvaluator);
+                    if (recipientEmailValue == null || recipientEmailValue.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowIndex + 1);
                         continue;
                     }
 
-                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
-                        logger.warn("Row {}: Invalid email format '{}', skipping", rowIndex + 1, recipientEmail);
+                    // Parse semicolon-separated recipients and validate each one
+                    List<String> validEmails = parseAndValidateRecipients(recipientEmailValue, rowIndex + 1);
+
+                    if (validEmails.isEmpty()) {
+                        logger.warn("Row {}: No valid email addresses found, skipping", rowIndex + 1);
                         continue;
                     }
 
@@ -74,8 +79,13 @@ public class ExcelDataSourceReader implements DataSourceReader {
                         fields.put(headers.get(colIndex), getCellValueAsString(cell, formulaEvaluator));
                     }
 
-                    emailDataList.add(new EmailData(recipientEmail.trim(), fields, rowIndex + 1));
-                    logger.debug("Row {}: Added for processing - {}", rowIndex + 1, recipientEmail);
+                    emailDataList.add(new EmailData(validEmails, fields, rowIndex + 1));
+                    if (validEmails.size() == 1) {
+                        logger.debug("Row {}: Added for processing - {}", rowIndex + 1, validEmails.getFirst());
+                    } else {
+                        logger.debug("Row {}: Added for processing - {} recipients: {}",
+                                rowIndex + 1, validEmails.size(), String.join(", ", validEmails));
+                    }
                 } else {
                     logger.debug("Row {}: Skipped ({}='{}')", rowIndex + 1, processColumn, processColumnValue);
                 }
@@ -87,6 +97,34 @@ public class ExcelDataSourceReader implements DataSourceReader {
         } catch (IOException e) {
             throw new EmailSenderException("Failed to read Excel file: " + path, e);
         }
+    }
+
+    /**
+     * Parses a potentially semicolon-separated list of email addresses and validates each one.
+     * Invalid email addresses are logged as warnings but processing continues with valid ones.
+     *
+     * @param recipientValue the raw recipient value from the data source (may contain multiple emails)
+     * @param rowNumber the row number for logging purposes
+     * @return a list of valid email addresses (may be empty if all are invalid)
+     */
+    private List<String> parseAndValidateRecipients(String recipientValue, int rowNumber) {
+        List<String> validEmails = new ArrayList<>();
+        String[] recipients = recipientValue.split(RECIPIENT_DELIMITER);
+
+        for (String recipient : recipients) {
+            String trimmedEmail = recipient.trim();
+            if (trimmedEmail.isEmpty()) {
+                continue; // Skip empty entries between semicolons
+            }
+
+            if (EmailSenderConstants.isValidEmail(trimmedEmail)) {
+                validEmails.add(trimmedEmail);
+            } else {
+                logger.warn("Row {}: Invalid email format '{}', skipping this recipient", rowNumber, trimmedEmail);
+            }
+        }
+
+        return validEmails;
     }
 
     private Sheet getSheet(Workbook workbook, String sheetName, String path) {

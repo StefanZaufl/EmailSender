@@ -5,6 +5,7 @@ A Java CLI tool that sends personalized emails with PDF attachments. The tool re
 ## Features
 
 - **Multiple Data Sources**: Read recipient data from CSV or Excel files (.xlsx/.xls)
+- **Multiple Recipients per Row**: Support for semicolon-separated email addresses in a single row
 - **Template Processing**:
   - HTML email bodies using Thymeleaf templating
   - Word document (.docx) attachments with placeholder replacement
@@ -326,6 +327,25 @@ Bob Wilson,bob@example.com,Global Ltd,January 2024,No
 ### Excel
 
 Same structure as CSV, with column headers in the first row. Supports `.xlsx` and `.xls` formats.
+
+### Multiple Recipients per Row
+
+You can specify multiple email recipients in a single row by separating them with semicolons:
+
+```csv
+FullName,Email,CompanyName,ReportDate,SendEmail
+Team Alpha,john@example.com;jane@example.com;bob@example.com,Acme Corp,January 2024,Yes
+Alice Johnson,alice@example.com,Tech Inc,January 2024,Yes
+```
+
+When multiple recipients are specified:
+- All recipients receive the same email with the same personalized content (based on the row's field values)
+- Each email address is validated individually
+- Invalid email addresses are logged as warnings but processing continues with the valid ones
+- If all email addresses in a row are invalid, the entire row is skipped
+- In the CSV report, each recipient is recorded as a separate entry
+
+This works for both CSV and Excel data sources.
 
 ## Project Structure
 

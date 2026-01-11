@@ -285,6 +285,38 @@ class EmailServiceTest {
         assertEquals(1, content.rowNumber());
     }
 
+    @Test
+    void sendEmail_multipleRecipients_sendsOnce() {
+        // Arrange
+        EmailData emailData = createMultiRecipientEmailData();
+
+        // Act
+        emailService.sendEmail(emailData);
+
+        // Assert - should only send once (all recipients in same email)
+        verify(sendMailRequestBuilder, times(1)).post(any());
+    }
+
+    @Test
+    void prepareEmail_multipleRecipients_returnsAllRecipients() {
+        // Arrange
+        EmailData emailData = createMultiRecipientEmailData();
+        when(templateService.processSubject(emailData)).thenReturn("Custom Subject");
+        when(templateService.processEmailBody(emailData)).thenReturn("<html>Custom Body</html>");
+        when(pdfGeneratorService.generatePdf(emailData)).thenReturn(new byte[]{4, 5, 6});
+
+        // Act
+        EmailService.EmailContent content = emailService.prepareEmail(emailData);
+
+        // Assert
+        assertEquals(3, content.recipientEmails().size());
+        assertEquals("john@example.com", content.recipientEmails().get(0));
+        assertEquals("jane@example.com", content.recipientEmails().get(1));
+        assertEquals("bob@example.com", content.recipientEmails().get(2));
+        assertEquals("john@example.com", content.recipientEmail()); // Backwards compatibility
+        assertEquals("john@example.com, jane@example.com, bob@example.com", content.recipientsAsString());
+    }
+
     // ==================== Group Sender Tests ====================
 
     @Test
@@ -369,6 +401,12 @@ class EmailServiceTest {
         Map<String, String> fields = new HashMap<>();
         fields.put("name", "Test User");
         return new EmailData("test@example.com", fields, 1);
+    }
+
+    private EmailData createMultiRecipientEmailData() {
+        Map<String, String> fields = new HashMap<>();
+        fields.put("name", "Test User");
+        return new EmailData(java.util.List.of("john@example.com", "jane@example.com", "bob@example.com"), fields, 1);
     }
 
     private ApiException createApiException(int statusCode) {

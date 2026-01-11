@@ -240,6 +240,73 @@ class DryRunIntegrationTest {
         assertTrue(reportLines.get(2).contains("excel.user3@example.com,Success"));
     }
 
+    @Test
+    void dryRun_withMultipleRecipientsInRow_createsOutputFilesForAll() throws Exception {
+        // Arrange
+        Path csvFile = createTestCsvFileWithMultipleRecipients();
+        Path emailTemplate = createEmailTemplate();
+        Path attachmentTemplate = createAttachmentTemplate();
+        Path reportPath = reportDir.resolve("multi-recipient-report.csv");
+
+        AppConfig appConfig = createAppConfig("csv", csvFile, emailTemplate, attachmentTemplate, reportPath);
+
+        // Create real services
+        TemplateService templateService = new TemplateService(appConfig);
+        PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
+
+        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
+        DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
+        ReportService reportService = new ReportService(appConfig);
+
+        SendEmailCommand command = new SendEmailCommand(appConfig, readers, liveEmailProcessor, dryRunProcessor, reportService);
+        CommandLine commandLine = new CommandLine(command);
+
+        // Act
+        int exitCode = commandLine.execute("--dry-run", "--output-dir=" + outputDir.toString());
+
+        // Assert
+        assertEquals(0, exitCode, "Command should complete successfully");
+
+        // Verify output files were created for row 2 (first email is used for filename)
+        assertTrue(Files.exists(outputDir.resolve("row2_john@example.com_body.html")));
+        assertTrue(Files.exists(outputDir.resolve("row2_john@example.com_attachment.pdf")));
+        assertTrue(Files.exists(outputDir.resolve("row2_john@example.com_meta.txt")));
+
+        // Verify meta file shows all recipients
+        String metaContent = Files.readString(outputDir.resolve("row2_john@example.com_meta.txt"));
+        assertTrue(metaContent.contains("john@example.com"));
+        assertTrue(metaContent.contains("jane@example.com"));
+        assertTrue(metaContent.contains("bob@example.com"));
+        assertTrue(metaContent.contains("Recipient Count: 3"));
+
+        // Verify single recipient row also works
+        assertTrue(Files.exists(outputDir.resolve("row3_alice@example.com_body.html")));
+
+        // Verify the CSV report contains all recipients (each as separate entry)
+        assertTrue(Files.exists(reportPath), "Report file should be created");
+        List<String> reportLines = Files.readAllLines(reportPath);
+        assertEquals(5, reportLines.size(), "Report should have header + 4 data rows (3 from first row + 1 from second)");
+        assertEquals("Email,Status", reportLines.get(0));
+
+        // All 4 recipients should be recorded
+        long successCount = reportLines.stream().filter(line -> line.contains("Success")).count();
+        assertEquals(4, successCount, "All 4 recipients should be recorded as successful");
+    }
+
+    private Path createTestCsvFileWithMultipleRecipients() throws IOException {
+        Path csvFile = dataDir.resolve("test-multi-recipients.csv");
+        String csvContent = """
+                FullName,Email,CompanyName,ReportDate,SendEmail
+                Team Alpha,john@example.com;jane@example.com;bob@example.com,Acme Corp,January 2024,Yes
+                Alice Johnson,alice@example.com,StartupXYZ,January 2024,Yes
+                """;
+        Files.writeString(csvFile, csvContent);
+        return csvFile;
+    }
+
     private Path createTestCsvFile() throws IOException {
         Path csvFile = dataDir.resolve("test-data.csv");
         String csvContent = """
