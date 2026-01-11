@@ -201,6 +201,14 @@ email-sender:
   # Optional: generate a CSV report of email sending results
   report:
     output-path: /path/to/email-report.csv
+
+  # Optional: PDF generation settings
+  pdf:
+    # Additional font patterns to include when using 'auto' or 'minimal' font-config mode
+    additional-fonts:
+      - roboto
+      - opensans
+      - sourcesans
 ```
 
 ### Environment Variables
@@ -271,9 +279,29 @@ java --enable-preview -jar email-sender-cli.jar \
 |--------|-------------|
 | `--dry-run` | Process templates but don't send emails; write files to disk |
 | `--output-dir`, `-o` | Output directory for dry-run mode (default: `./output`) |
+| `--font-config` | Font configuration mode for PDF generation (see below) |
 | `--verbose`, `-v` | Enable detailed logging |
 | `--help` | Show help message |
 | `--version` | Show version |
+
+### Font Configuration
+
+The `--font-config` option controls how docx4j discovers and loads fonts for PDF generation. Some fonts (like Noto emoji fonts) have complex glyph tables that can cause errors during font discovery.
+
+| Mode | Description |
+|------|-------------|
+| `auto` (default) | Uses minimal font list on non-Windows platforms, full auto-discovery on Windows |
+| `autoDiscoverFonts` | Use all system fonts (may cause errors with certain fonts) |
+| `minimal` | Always use a minimal, safe font list |
+
+Example:
+```bash
+java --enable-preview -jar email-sender-cli.jar \
+  --spring.config.import=/path/to/config.yml \
+  --font-config=minimal
+```
+
+You can also specify additional fonts to include in the allow-list via configuration (see below).
 
 ### Logging
 
