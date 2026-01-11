@@ -2,7 +2,6 @@ package at.klickmagiesoftware.emailsender.service;
 
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
-import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -20,11 +19,18 @@ import java.util.Map;
 
 /**
  * Data source reader implementation for CSV files.
+ * Supports multiple recipients per row, separated by semicolons.
  */
 @Service
 public class CsvDataSourceReader implements DataSourceReader {
 
     private static final Logger logger = LoggerFactory.getLogger(CsvDataSourceReader.class);
+
+    private final EmailAddressService emailAddressService;
+
+    public CsvDataSourceReader(EmailAddressService emailAddressService) {
+        this.emailAddressService = emailAddressService;
+    }
 
     @Override
     public boolean supports(String type) {
@@ -54,14 +60,17 @@ public class CsvDataSourceReader implements DataSourceReader {
                 String processColumnValue = record.get(processColumn);
 
                 if (processValue.equalsIgnoreCase(processColumnValue)) {
-                    String recipientEmail = record.get(recipientColumn);
-                    if (recipientEmail == null || recipientEmail.isBlank()) {
+                    String recipientEmailValue = record.get(recipientColumn);
+                    if (recipientEmailValue == null || recipientEmailValue.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowNumber);
                         continue;
                     }
 
-                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
-                        logger.warn("Row {}: Invalid email format '{}', skipping", rowNumber, recipientEmail);
+                    // Parse semicolon-separated recipients and validate each one
+                    List<String> validEmails = emailAddressService.parseAndValidateRecipients(recipientEmailValue, rowNumber);
+
+                    if (validEmails.isEmpty()) {
+                        logger.warn("Row {}: No valid email addresses found, skipping", rowNumber);
                         continue;
                     }
 
@@ -70,8 +79,13 @@ public class CsvDataSourceReader implements DataSourceReader {
                         fields.put(header, record.get(header));
                     }
 
-                    emailDataList.add(new EmailData(recipientEmail.trim(), fields, rowNumber));
-                    logger.debug("Row {}: Added for processing - {}", rowNumber, recipientEmail);
+                    emailDataList.add(new EmailData(validEmails, fields, rowNumber));
+                    if (validEmails.size() == 1) {
+                        logger.debug("Row {}: Added for processing - {}", rowNumber, validEmails.getFirst());
+                    } else {
+                        logger.debug("Row {}: Added for processing - {} recipients: {}",
+                                rowNumber, validEmails.size(), String.join(", ", validEmails));
+                    }
                 } else {
                     logger.debug("Row {}: Skipped ({}='{}')", rowNumber, processColumn, processColumnValue);
                 }

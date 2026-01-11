@@ -10,53 +10,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for EmailSenderConstants utility class.
+ * Note: Email validation tests have been moved to EmailAddressServiceTest.
  */
 class EmailSenderConstantsTest {
-
-    // Email validation tests
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "test@example.com",
-            "user.name@domain.org",
-            "user+tag@example.co.uk",
-            "firstname.lastname@company.com",
-            "email@subdomain.domain.com",
-            "123@numbers.com",
-            "email@domain.name"
-    })
-    void isValidEmail_validEmails_returnsTrue(String email) {
-        assertTrue(EmailSenderConstants.isValidEmail(email),
-                "Expected '" + email + "' to be valid");
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = {
-            "notanemail",
-            "user@",
-            "@example.com",
-            "user@.com",
-            "user@domain",
-            "",
-            "   ",
-            "user name@domain.com",
-            "user@domain..com"
-    })
-    void isValidEmail_invalidEmails_returnsFalse(String email) {
-        assertFalse(EmailSenderConstants.isValidEmail(email),
-                "Expected '" + email + "' to be invalid");
-    }
-
-    @Test
-    void isValidEmail_null_returnsFalse() {
-        assertFalse(EmailSenderConstants.isValidEmail(null));
-    }
-
-    @Test
-    void isValidEmail_emailWithWhitespace_handlesCorrectly() {
-        // With leading/trailing whitespace - should still validate after trim
-        assertTrue(EmailSenderConstants.isValidEmail("  test@example.com  "));
-    }
 
     // XML escaping tests
 

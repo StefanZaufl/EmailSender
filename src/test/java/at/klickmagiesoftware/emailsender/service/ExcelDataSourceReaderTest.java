@@ -20,13 +20,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class ExcelDataSourceReaderTest {
 
     private ExcelDataSourceReader reader;
+    private EmailAddressService emailAddressService;
 
     @TempDir
     Path tempDir;
 
     @BeforeEach
     void setUp() {
-        reader = new ExcelDataSourceReader();
+        emailAddressService = new EmailAddressService();
+        reader = new ExcelDataSourceReader(emailAddressService);
     }
 
     @Test
@@ -372,5 +374,142 @@ class ExcelDataSourceReaderTest {
         }
 
         return excelFile;
+    }
+
+    @Test
+    void readData_multipleRecipientsInRow_parsesAllValidEmails() throws IOException {
+        // Arrange
+        Path excelFile = createTestExcelFile(
+                new String[]{"FullName", "Email", "SendEmail"},
+                new Object[][]{
+                        {"John Doe", "john@example.com;jane@example.com;bob@example.com", "Yes"}
+                }
+        );
+
+        // Act
+        List<EmailData> result = reader.readData(
+                excelFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertTrue(emailData.hasMultipleRecipients());
+        assertEquals(3, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("jane@example.com", emailData.getRecipientEmails().get(1));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(2));
+    }
+
+    @Test
+    void readData_multipleRecipientsWithInvalid_keepsOnlyValidEmails() throws IOException {
+        // Arrange
+        Path excelFile = createTestExcelFile(
+                new String[]{"FullName", "Email", "SendEmail"},
+                new Object[][]{
+                        {"John Doe", "john@example.com;notanemail;bob@example.com", "Yes"}
+                }
+        );
+
+        // Act
+        List<EmailData> result = reader.readData(
+                excelFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - invalid email is skipped but valid ones are kept
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertTrue(emailData.hasMultipleRecipients());
+        assertEquals(2, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(1));
+    }
+
+    @Test
+    void readData_multipleRecipientsAllInvalid_skipsRow() throws IOException {
+        // Arrange
+        Path excelFile = createTestExcelFile(
+                new String[]{"FullName", "Email", "SendEmail"},
+                new Object[][]{
+                        {"John Doe", "notanemail;alsoinvalid", "Yes"},
+                        {"Jane Smith", "jane@example.com", "Yes"}
+                }
+        );
+
+        // Act
+        List<EmailData> result = reader.readData(
+                excelFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - first row is skipped entirely, only second row is processed
+        assertEquals(1, result.size());
+        assertEquals("jane@example.com", result.getFirst().getRecipientEmail());
+    }
+
+    @Test
+    void readData_multipleRecipientsWithSpaces_trimsWhitespace() throws IOException {
+        // Arrange
+        Path excelFile = createTestExcelFile(
+                new String[]{"FullName", "Email", "SendEmail"},
+                new Object[][]{
+                        {"John Doe", " john@example.com ; jane@example.com ; bob@example.com ", "Yes"}
+                }
+        );
+
+        // Act
+        List<EmailData> result = reader.readData(
+                excelFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertEquals(3, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmails().get(0));
+        assertEquals("jane@example.com", emailData.getRecipientEmails().get(1));
+        assertEquals("bob@example.com", emailData.getRecipientEmails().get(2));
+    }
+
+    @Test
+    void readData_singleRecipient_worksAsExpected() throws IOException {
+        // Arrange
+        Path excelFile = createTestExcelFile(
+                new String[]{"FullName", "Email", "SendEmail"},
+                new Object[][]{
+                        {"John Doe", "john@example.com", "Yes"}
+                }
+        );
+
+        // Act
+        List<EmailData> result = reader.readData(
+                excelFile.toString(),
+                null,
+                "SendEmail",
+                "Yes",
+                "Email"
+        );
+
+        // Assert - single recipient should also work
+        assertEquals(1, result.size());
+        EmailData emailData = result.getFirst();
+        assertFalse(emailData.hasMultipleRecipients());
+        assertEquals(1, emailData.getRecipientEmails().size());
+        assertEquals("john@example.com", emailData.getRecipientEmail());
     }
 }

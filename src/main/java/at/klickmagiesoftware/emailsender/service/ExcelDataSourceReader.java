@@ -2,7 +2,6 @@ package at.klickmagiesoftware.emailsender.service;
 
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
-import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
 import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,12 +17,18 @@ import java.util.Map;
 
 /**
  * Data source reader implementation for Excel files (.xlsx and .xls).
+ * Supports multiple recipients per row, separated by semicolons.
  */
 @Service
 public class ExcelDataSourceReader implements DataSourceReader {
 
     private static final Logger logger = LoggerFactory.getLogger(ExcelDataSourceReader.class);
     private final DataFormatter dataFormatter = new DataFormatter();
+    private final EmailAddressService emailAddressService;
+
+    public ExcelDataSourceReader(EmailAddressService emailAddressService) {
+        this.emailAddressService = emailAddressService;
+    }
 
     @Override
     public boolean supports(String type) {
@@ -57,14 +62,17 @@ public class ExcelDataSourceReader implements DataSourceReader {
                 String processColumnValue = getCellValueAsString(row.getCell(processColumnIndex), formulaEvaluator);
 
                 if (processValue.equalsIgnoreCase(processColumnValue)) {
-                    String recipientEmail = getCellValueAsString(row.getCell(recipientColumnIndex), formulaEvaluator);
-                    if (recipientEmail == null || recipientEmail.isBlank()) {
+                    String recipientEmailValue = getCellValueAsString(row.getCell(recipientColumnIndex), formulaEvaluator);
+                    if (recipientEmailValue == null || recipientEmailValue.isBlank()) {
                         logger.warn("Row {}: Empty recipient email, skipping", rowIndex + 1);
                         continue;
                     }
 
-                    if (!EmailSenderConstants.isValidEmail(recipientEmail)) {
-                        logger.warn("Row {}: Invalid email format '{}', skipping", rowIndex + 1, recipientEmail);
+                    // Parse semicolon-separated recipients and validate each one
+                    List<String> validEmails = emailAddressService.parseAndValidateRecipients(recipientEmailValue, rowIndex + 1);
+
+                    if (validEmails.isEmpty()) {
+                        logger.warn("Row {}: No valid email addresses found, skipping", rowIndex + 1);
                         continue;
                     }
 
@@ -74,8 +82,13 @@ public class ExcelDataSourceReader implements DataSourceReader {
                         fields.put(headers.get(colIndex), getCellValueAsString(cell, formulaEvaluator));
                     }
 
-                    emailDataList.add(new EmailData(recipientEmail.trim(), fields, rowIndex + 1));
-                    logger.debug("Row {}: Added for processing - {}", rowIndex + 1, recipientEmail);
+                    emailDataList.add(new EmailData(validEmails, fields, rowIndex + 1));
+                    if (validEmails.size() == 1) {
+                        logger.debug("Row {}: Added for processing - {}", rowIndex + 1, validEmails.getFirst());
+                    } else {
+                        logger.debug("Row {}: Added for processing - {} recipients: {}",
+                                rowIndex + 1, validEmails.size(), String.join(", ", validEmails));
+                    }
                 } else {
                     logger.debug("Row {}: Skipped ({}='{}')", rowIndex + 1, processColumn, processColumnValue);
                 }
