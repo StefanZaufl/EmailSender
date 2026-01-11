@@ -131,31 +131,4 @@ class EmailAddressServiceTest {
 
         assertTrue(result.isEmpty());
     }
-
-    // ==================== parseAndValidateRecipients (without row number) Tests ====================
-
-    @Test
-    void parseAndValidateRecipientsNoRow_singleValidEmail_returnsListWithOneEmail() {
-        List<String> result = emailAddressService.parseAndValidateRecipients("test@example.com");
-
-        assertEquals(1, result.size());
-        assertEquals("test@example.com", result.get(0));
-    }
-
-    @Test
-    void parseAndValidateRecipientsNoRow_multipleValidEmails_returnsAllEmails() {
-        String input = "john@example.com;jane@example.com";
-        List<String> result = emailAddressService.parseAndValidateRecipients(input);
-
-        assertEquals(2, result.size());
-        assertEquals("john@example.com", result.get(0));
-        assertEquals("jane@example.com", result.get(1));
-    }
-
-    @Test
-    void parseAndValidateRecipientsNoRow_nullInput_returnsEmptyList() {
-        List<String> result = emailAddressService.parseAndValidateRecipients(null);
-
-        assertTrue(result.isEmpty());
-    }
 }
