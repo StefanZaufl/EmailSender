@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,7 +87,7 @@ class DryRunEmailProcessorTest {
         EmailData emailData = new EmailData("john@example.com", fields, 1);
 
         EmailService.EmailContent content = new EmailService.EmailContent(
-                "john@example.com",
+                List.of("john@example.com"),
                 "Test Subject",
                 "<html><body>Test Body</body></html>",
                 new byte[]{0x25, 0x50, 0x44, 0x46}, // %PDF
@@ -117,7 +118,7 @@ class DryRunEmailProcessorTest {
 
         String expectedBody = "<html><body>Hello World</body></html>";
         EmailService.EmailContent content = new EmailService.EmailContent(
-                "test@example.com",
+                List.of("test@example.com"),
                 "Subject",
                 expectedBody,
                 new byte[]{},
@@ -143,7 +144,7 @@ class DryRunEmailProcessorTest {
         EmailData emailData = new EmailData("meta@example.com", fields, 5);
 
         EmailService.EmailContent content = new EmailService.EmailContent(
-                "meta@example.com",
+                List.of("meta@example.com"),
                 "Important Subject",
                 "<html></html>",
                 new byte[]{},
@@ -160,7 +161,8 @@ class DryRunEmailProcessorTest {
 
         assertTrue(metaContent.contains("meta@example.com"));
         assertTrue(metaContent.contains("Important Subject"));
-        assertTrue(metaContent.contains("5"));
+        assertTrue(metaContent.contains("Row Number: 5"));
+        assertTrue(metaContent.contains("Recipient Count: 1"));
     }
 
     @Test
@@ -172,7 +174,7 @@ class DryRunEmailProcessorTest {
         EmailData emailData = new EmailData("user+tag@example.com", fields, 1);
 
         EmailService.EmailContent content = new EmailService.EmailContent(
-                "user+tag@example.com",
+                List.of("user+tag@example.com"),
                 "Subject",
                 "<html></html>",
                 new byte[]{},
@@ -198,7 +200,7 @@ class DryRunEmailProcessorTest {
 
         byte[] expectedPdf = new byte[]{0x25, 0x50, 0x44, 0x46, 0x2D}; // %PDF-
         EmailService.EmailContent content = new EmailService.EmailContent(
-                "pdf@example.com",
+                List.of("pdf@example.com"),
                 "Subject",
                 "<html></html>",
                 expectedPdf,
