@@ -3,7 +3,8 @@ package at.klickmagiesoftware.emailsender.util;
 import java.util.regex.Pattern;
 
 /**
- * Shared constants for the email sender application.
+ * Shared constants and utility methods for template processing.
+ * For email address validation and parsing, use {@link at.klickmagiesoftware.emailsender.service.EmailAddressService}.
  */
 public final class EmailSenderConstants {
 
@@ -57,27 +58,6 @@ public final class EmailSenderConstants {
             return false;
         }
         return fieldName.matches("[\\w\\-äöüÄÖÜß]+");
-    }
-
-    /**
-     * Pattern for validating email addresses.
-     * Uses a practical regex that covers most valid email formats.
-     */
-    public static final Pattern EMAIL_PATTERN = Pattern.compile(
-            "^[a-zA-Z0-9._%+-]+@([a-zA-Z0-9]+([.\\-][a-zA-Z0-9]+)?)+\\.[a-zA-Z]{2,}$"
-    );
-
-    /**
-     * Validates if the given string is a valid email address format.
-     *
-     * @param email the email address to validate
-     * @return true if the email format is valid, false otherwise
-     */
-    public static boolean isValidEmail(String email) {
-        if (email == null || email.isBlank()) {
-            return false;
-        }
-        return EMAIL_PATTERN.matcher(email.trim()).matches();
     }
 
     /**

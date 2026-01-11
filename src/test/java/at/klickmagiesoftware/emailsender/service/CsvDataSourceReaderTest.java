@@ -16,13 +16,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class CsvDataSourceReaderTest {
 
     private CsvDataSourceReader reader;
+    private EmailAddressService emailAddressService;
 
     @TempDir
     Path tempDir;
 
     @BeforeEach
     void setUp() {
-        reader = new CsvDataSourceReader();
+        emailAddressService = new EmailAddressService();
+        reader = new CsvDataSourceReader(emailAddressService);
     }
 
     @Test

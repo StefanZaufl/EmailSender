@@ -20,13 +20,15 @@ import static org.junit.jupiter.api.Assertions.*;
 class ExcelDataSourceReaderTest {
 
     private ExcelDataSourceReader reader;
+    private EmailAddressService emailAddressService;
 
     @TempDir
     Path tempDir;
 
     @BeforeEach
     void setUp() {
-        reader = new ExcelDataSourceReader();
+        emailAddressService = new EmailAddressService();
+        reader = new ExcelDataSourceReader(emailAddressService);
     }
 
     @Test

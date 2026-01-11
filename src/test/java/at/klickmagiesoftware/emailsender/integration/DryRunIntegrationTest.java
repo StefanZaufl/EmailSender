@@ -4,6 +4,7 @@ import at.klickmagiesoftware.emailsender.cli.SendEmailCommand;
 import at.klickmagiesoftware.emailsender.config.AppConfig;
 import at.klickmagiesoftware.emailsender.service.CsvDataSourceReader;
 import at.klickmagiesoftware.emailsender.service.DataSourceReader;
+import at.klickmagiesoftware.emailsender.service.EmailAddressService;
 import at.klickmagiesoftware.emailsender.service.EmailService;
 import at.klickmagiesoftware.emailsender.service.ExcelDataSourceReader;
 import at.klickmagiesoftware.emailsender.service.PdfGeneratorService;
@@ -108,7 +109,8 @@ class DryRunIntegrationTest {
         when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
-        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
+        EmailAddressService emailAddressService = new EmailAddressService();
+        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(emailAddressService), new ExcelDataSourceReader(emailAddressService));
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
         ReportService reportService = new ReportService(appConfig);
 
@@ -187,7 +189,8 @@ class DryRunIntegrationTest {
         when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
-        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
+        EmailAddressService emailAddressService = new EmailAddressService();
+        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(emailAddressService), new ExcelDataSourceReader(emailAddressService));
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
         ReportService reportService = new ReportService(appConfig);
 
@@ -257,7 +260,8 @@ class DryRunIntegrationTest {
         when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
         EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
 
-        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(), new ExcelDataSourceReader());
+        EmailAddressService emailAddressService = new EmailAddressService();
+        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(emailAddressService), new ExcelDataSourceReader(emailAddressService));
         DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
         ReportService reportService = new ReportService(appConfig);
 

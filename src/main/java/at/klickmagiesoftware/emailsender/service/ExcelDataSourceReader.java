@@ -2,7 +2,6 @@ package at.klickmagiesoftware.emailsender.service;
 
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
-import at.klickmagiesoftware.emailsender.util.EmailSenderConstants;
 import org.apache.poi.ss.usermodel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,8 +23,12 @@ import java.util.Map;
 public class ExcelDataSourceReader implements DataSourceReader {
 
     private static final Logger logger = LoggerFactory.getLogger(ExcelDataSourceReader.class);
-    private static final String RECIPIENT_DELIMITER = ";";
     private final DataFormatter dataFormatter = new DataFormatter();
+    private final EmailAddressService emailAddressService;
+
+    public ExcelDataSourceReader(EmailAddressService emailAddressService) {
+        this.emailAddressService = emailAddressService;
+    }
 
     @Override
     public boolean supports(String type) {
@@ -66,7 +69,7 @@ public class ExcelDataSourceReader implements DataSourceReader {
                     }
 
                     // Parse semicolon-separated recipients and validate each one
-                    List<String> validEmails = parseAndValidateRecipients(recipientEmailValue, rowIndex + 1);
+                    List<String> validEmails = emailAddressService.parseAndValidateRecipients(recipientEmailValue, rowIndex + 1);
 
                     if (validEmails.isEmpty()) {
                         logger.warn("Row {}: No valid email addresses found, skipping", rowIndex + 1);
@@ -97,34 +100,6 @@ public class ExcelDataSourceReader implements DataSourceReader {
         } catch (IOException e) {
             throw new EmailSenderException("Failed to read Excel file: " + path, e);
         }
-    }
-
-    /**
-     * Parses a potentially semicolon-separated list of email addresses and validates each one.
-     * Invalid email addresses are logged as warnings but processing continues with valid ones.
-     *
-     * @param recipientValue the raw recipient value from the data source (may contain multiple emails)
-     * @param rowNumber the row number for logging purposes
-     * @return a list of valid email addresses (may be empty if all are invalid)
-     */
-    private List<String> parseAndValidateRecipients(String recipientValue, int rowNumber) {
-        List<String> validEmails = new ArrayList<>();
-        String[] recipients = recipientValue.split(RECIPIENT_DELIMITER);
-
-        for (String recipient : recipients) {
-            String trimmedEmail = recipient.trim();
-            if (trimmedEmail.isEmpty()) {
-                continue; // Skip empty entries between semicolons
-            }
-
-            if (EmailSenderConstants.isValidEmail(trimmedEmail)) {
-                validEmails.add(trimmedEmail);
-            } else {
-                logger.warn("Row {}: Invalid email format '{}', skipping this recipient", rowNumber, trimmedEmail);
-            }
-        }
-
-        return validEmails;
     }
 
     private Sheet getSheet(Workbook workbook, String sheetName, String path) {
