@@ -102,6 +102,7 @@ public class SendEmailCommand implements Callable<Integer> {
             // Process each row using the selected strategy
             List<FailedEmail> failures = new ArrayList<>();
             int successCount = 0;
+            int interruptedAtIndex = -1;
 
             for (int i = 0; i < emailDataList.size(); i++) {
                 EmailData emailData = emailDataList.get(i);
@@ -126,7 +127,8 @@ public class SendEmailCommand implements Callable<Integer> {
                     Thread.currentThread().interrupt();
                     logger.error("Email sending interrupted");
                     failures.add(new FailedEmail(emailData, "Interrupted"));
-                    reportService.recordFailure(emailData.getRecipientEmails(), "Interrupted");
+                    reportService.recordInterrupted(emailData.getRecipientEmails());
+                    interruptedAtIndex = i;
                     break;
                 } catch (Exception e) {
                     logger.error("Failed to process row {}: {}", emailData.getRowNumber(), e.getMessage());
@@ -136,6 +138,17 @@ public class SendEmailCommand implements Callable<Integer> {
                     failures.add(new FailedEmail(emailData, e.getMessage()));
                     reportService.recordFailure(emailData.getRecipientEmails(), e.getMessage());
                 }
+            }
+
+            // Mark all remaining emails as interrupted if processing was interrupted
+            if (interruptedAtIndex >= 0) {
+                for (int i = interruptedAtIndex + 1; i < emailDataList.size(); i++) {
+                    EmailData remainingEmail = emailDataList.get(i);
+                    failures.add(new FailedEmail(remainingEmail, "Interrupted (not processed)"));
+                    reportService.recordInterrupted(remainingEmail.getRecipientEmails());
+                }
+                logger.warn("Marked {} remaining emails as interrupted",
+                        emailDataList.size() - interruptedAtIndex - 1);
             }
 
             // Write the CSV report

@@ -28,6 +28,7 @@ public class ReportService {
     private static final String HEADER_STATUS = "Status";
     private static final String STATUS_SUCCESS = "Success";
     private static final String STATUS_FAILED = "Failed";
+    private static final String STATUS_INTERRUPTED = "Interrupted";
 
     private final AppConfig appConfig;
     private final List<EmailResult> results = new ArrayList<>();
@@ -79,6 +80,28 @@ public class ReportService {
     public void recordFailure(List<String> emails, String errorMessage) {
         for (String email : emails) {
             recordFailure(email, errorMessage);
+        }
+    }
+
+    /**
+     * Records an interrupted email (not processed due to interruption).
+     *
+     * @param email the recipient email address
+     */
+    public void recordInterrupted(String email) {
+        results.add(new EmailResult(email, false, STATUS_INTERRUPTED));
+        logger.debug("Recorded interrupted for: {}", email);
+    }
+
+    /**
+     * Records interrupted emails for multiple recipients.
+     * Each recipient is recorded as a separate interrupted entry.
+     *
+     * @param emails the list of recipient email addresses
+     */
+    public void recordInterrupted(List<String> emails) {
+        for (String email : emails) {
+            recordInterrupted(email);
         }
     }
 
@@ -135,10 +158,15 @@ public class ReportService {
                      .build())) {
 
             for (EmailResult result : results) {
-                csvPrinter.printRecord(
-                        result.email(),
-                        result.success() ? STATUS_SUCCESS : STATUS_FAILED
-                );
+                String status;
+                if (result.success()) {
+                    status = STATUS_SUCCESS;
+                } else if (STATUS_INTERRUPTED.equals(result.errorMessage())) {
+                    status = STATUS_INTERRUPTED;
+                } else {
+                    status = STATUS_FAILED;
+                }
+                csvPrinter.printRecord(result.email(), status);
             }
 
             csvPrinter.flush();
@@ -176,12 +204,25 @@ public class ReportService {
     }
 
     /**
-     * Returns the number of failed results.
+     * Returns the number of failed results (not including interrupted).
      *
      * @return the count of failed results
      */
     public int getFailureCount() {
-        return (int) results.stream().filter(r -> !r.success()).count();
+        return (int) results.stream()
+                .filter(r -> !r.success() && !STATUS_INTERRUPTED.equals(r.errorMessage()))
+                .count();
+    }
+
+    /**
+     * Returns the number of interrupted results.
+     *
+     * @return the count of interrupted results
+     */
+    public int getInterruptedCount() {
+        return (int) results.stream()
+                .filter(r -> STATUS_INTERRUPTED.equals(r.errorMessage()))
+                .count();
     }
 
     /**

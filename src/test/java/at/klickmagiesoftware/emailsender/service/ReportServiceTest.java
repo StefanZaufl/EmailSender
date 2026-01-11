@@ -76,6 +76,50 @@ class ReportServiceTest {
     }
 
     @Test
+    void recordInterrupted_addsInterruptedResult() {
+        // Act
+        reportService.recordInterrupted("interrupted@example.com");
+
+        // Assert
+        assertEquals(1, reportService.getResultCount());
+        assertEquals(0, reportService.getSuccessCount());
+        assertEquals(0, reportService.getFailureCount());
+        assertEquals(1, reportService.getInterruptedCount());
+
+        List<ReportService.EmailResult> results = reportService.getResults();
+        assertEquals(1, results.size());
+        assertEquals("interrupted@example.com", results.getFirst().email());
+        assertFalse(results.getFirst().success());
+        assertEquals("Interrupted", results.getFirst().errorMessage());
+    }
+
+    @Test
+    void recordInterrupted_multipleEmails_addsAllAsInterrupted() {
+        // Act
+        reportService.recordInterrupted(List.of("first@example.com", "second@example.com", "third@example.com"));
+
+        // Assert
+        assertEquals(3, reportService.getResultCount());
+        assertEquals(0, reportService.getSuccessCount());
+        assertEquals(0, reportService.getFailureCount());
+        assertEquals(3, reportService.getInterruptedCount());
+    }
+
+    @Test
+    void recordMixedResultsWithInterrupted_tracksCorrectly() {
+        // Act
+        reportService.recordSuccess("success@example.com");
+        reportService.recordFailure("fail@example.com", "Error");
+        reportService.recordInterrupted("interrupted@example.com");
+
+        // Assert
+        assertEquals(3, reportService.getResultCount());
+        assertEquals(1, reportService.getSuccessCount());
+        assertEquals(1, reportService.getFailureCount());
+        assertEquals(1, reportService.getInterruptedCount());
+    }
+
+    @Test
     void clear_removesAllResults() {
         // Arrange
         reportService.recordSuccess("test@example.com");
@@ -201,6 +245,27 @@ class ReportServiceTest {
         assertEquals("first@example.com,Success", lines.get(1));
         assertEquals("second@example.com,Failed", lines.get(2));
         assertEquals("third@example.com,Success", lines.get(3));
+    }
+
+    @Test
+    void writeReport_withInterrupted_showsInterruptedStatus() throws IOException {
+        // Arrange
+        Path reportPath = tempDir.resolve("interrupted-report.csv");
+        reportService.recordSuccess("success@example.com");
+        reportService.recordFailure("fail@example.com", "Error");
+        reportService.recordInterrupted("interrupted@example.com");
+
+        // Act
+        reportService.writeReport(reportPath.toString());
+
+        // Assert
+        List<String> lines = Files.readAllLines(reportPath);
+        assertEquals(4, lines.size()); // header + 3 data rows
+
+        assertEquals("Email,Status", lines.get(0));
+        assertEquals("success@example.com,Success", lines.get(1));
+        assertEquals("fail@example.com,Failed", lines.get(2));
+        assertEquals("interrupted@example.com,Interrupted", lines.get(3));
     }
 
     @Test
