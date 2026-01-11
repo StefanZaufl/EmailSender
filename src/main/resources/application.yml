@@ -14,11 +14,12 @@ spring:
 logging:
   level:
     root: INFO
-    com.yourcompany.emailsender: INFO
+    at.klickmagiesoftware.emailsender: INFO
     # Set to DEBUG for more detailed logging:
-    # com.yourcompany.emailsender: DEBUG
-  pattern:
-    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    # at.klickmagiesoftware.emailsender: DEBUG
+  # Logging configuration is defined in logback-spring.xml
+  # Logs are written to console and to a rolling file in the current directory
+  # Override log file location with: --logging.file.path=/path/to/logs
 
 # Email Sender Configuration
 # These values should be provided via an external config file

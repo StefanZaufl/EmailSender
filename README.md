@@ -275,6 +275,30 @@ java --enable-preview -jar email-sender-cli.jar \
 | `--help` | Show help message |
 | `--version` | Show version |
 
+### Logging
+
+The application logs to both the console and a rolling log file. By default, log files are created in the current working directory:
+
+- **Log file**: `email-sender.log` (in the current directory)
+- **Rolling policy**: Daily rollover, max 10MB per file
+- **Retention**: 30 days of history, max 100MB total
+
+To customize the log file location:
+
+```bash
+# Specify a custom log directory
+java -DLOG_PATH=/var/log/email-sender -jar email-sender-cli.jar
+
+# Or via command line
+java -jar email-sender-cli.jar --logging.file.path=/var/log/email-sender
+```
+
+To enable debug logging:
+
+```bash
+java -jar email-sender-cli.jar --logging.level.at.klickmagiesoftware.emailsender=DEBUG
+```
+
 ## Templates
 
 ### HTML Email Template (Thymeleaf)
