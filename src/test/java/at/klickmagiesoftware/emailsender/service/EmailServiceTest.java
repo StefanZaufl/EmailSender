@@ -16,6 +16,7 @@ import org.mockito.MockitoAnnotations;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -406,7 +407,7 @@ class EmailServiceTest {
     private EmailData createMultiRecipientEmailData() {
         Map<String, String> fields = new HashMap<>();
         fields.put("name", "Test User");
-        return new EmailData(java.util.List.of("john@example.com", "jane@example.com", "bob@example.com"), fields, 1);
+        return new EmailData(List.of("john@example.com", "jane@example.com", "bob@example.com"), fields, 1);
     }
 
     private ApiException createApiException(int statusCode) {

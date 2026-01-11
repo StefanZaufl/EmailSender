@@ -52,7 +52,7 @@ public class ReportService {
      *
      * @param emails the list of recipient email addresses
      */
-    public void recordSuccess(java.util.List<String> emails) {
+    public void recordSuccess(List<String> emails) {
         for (String email : emails) {
             recordSuccess(email);
         }
@@ -76,7 +76,7 @@ public class ReportService {
      * @param emails       the list of recipient email addresses
      * @param errorMessage the error message describing the failure
      */
-    public void recordFailure(java.util.List<String> emails, String errorMessage) {
+    public void recordFailure(List<String> emails, String errorMessage) {
         for (String email : emails) {
             recordFailure(email, errorMessage);
         }
