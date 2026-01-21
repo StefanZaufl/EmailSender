@@ -91,6 +91,7 @@ class DryRunEmailProcessorTest {
                 "Test Subject",
                 "<html><body>Test Body</body></html>",
                 new byte[]{0x25, 0x50, 0x44, 0x46}, // %PDF
+                "report.pdf",
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -122,6 +123,7 @@ class DryRunEmailProcessorTest {
                 "Subject",
                 expectedBody,
                 new byte[]{},
+                "attachment.pdf",
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -148,6 +150,7 @@ class DryRunEmailProcessorTest {
                 "Important Subject",
                 "<html></html>",
                 new byte[]{},
+                "document.pdf",
                 5
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -161,6 +164,7 @@ class DryRunEmailProcessorTest {
 
         assertTrue(metaContent.contains("meta@example.com"));
         assertTrue(metaContent.contains("Important Subject"));
+        assertTrue(metaContent.contains("Attachment Filename: document.pdf"));
         assertTrue(metaContent.contains("Row Number: 5"));
         assertTrue(metaContent.contains("Recipient Count: 1"));
     }
@@ -178,6 +182,7 @@ class DryRunEmailProcessorTest {
                 "Subject",
                 "<html></html>",
                 new byte[]{},
+                "report.pdf",
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -204,6 +209,7 @@ class DryRunEmailProcessorTest {
                 "Subject",
                 "<html></html>",
                 expectedPdf,
+                "document.pdf",
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);

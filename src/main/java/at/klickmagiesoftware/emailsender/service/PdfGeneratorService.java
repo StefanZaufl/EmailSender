@@ -172,19 +172,11 @@ public class PdfGeneratorService {
             }
 
             String value = null;
-
-            // Build the clean placeholder for field mapping lookup
-            String cleanPlaceholder = "{{" + cleanFieldName + "}}";
             String originalPlaceholder = matcher.group(0);
 
-            // First check if there's a field mapping for this placeholder (using the clean version)
-            if (fieldMappings.containsKey(cleanPlaceholder)) {
-                String sourceColumn = fieldMappings.get(cleanPlaceholder);
-                value = fields.get(sourceColumn);
-            }
-            // Also check with the original placeholder in case it was mapped that way
-            if (value == null && fieldMappings.containsKey(originalPlaceholder)) {
-                String sourceColumn = fieldMappings.get(originalPlaceholder);
+            // Check field mappings - try multiple key formats for compatibility
+            String sourceColumn = findFieldMappingSource(fieldMappings, cleanFieldName);
+            if (sourceColumn != null) {
                 value = fields.get(sourceColumn);
             }
 
@@ -219,5 +211,36 @@ public class PdfGeneratorService {
 
         // Apply the modified XML back to the document
         documentPart.setContents((org.docx4j.wml.Document) XmlUtils.unmarshalString(result.toString()));
+    }
+
+    /**
+     * Finds the source column for a field mapping by checking multiple key formats.
+     * This handles cases where field mappings may be defined with or without braces.
+     *
+     * @param fieldMappings the field mappings map
+     * @param fieldName the field name without braces (e.g., "name")
+     * @return the source column name, or null if no mapping exists
+     */
+    private String findFieldMappingSource(Map<String, String> fieldMappings, String fieldName) {
+        // Try with braces first (e.g., "{{name}}")
+        String withBraces = "{{" + fieldName + "}}";
+        if (fieldMappings.containsKey(withBraces)) {
+            return fieldMappings.get(withBraces);
+        }
+
+        // Try without braces (e.g., "name")
+        if (fieldMappings.containsKey(fieldName)) {
+            return fieldMappings.get(fieldName);
+        }
+
+        // Check all keys by stripping braces for comparison
+        for (Map.Entry<String, String> entry : fieldMappings.entrySet()) {
+            String key = entry.getKey().replace("{{", "").replace("}}", "");
+            if (key.equals(fieldName)) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
     }
 }

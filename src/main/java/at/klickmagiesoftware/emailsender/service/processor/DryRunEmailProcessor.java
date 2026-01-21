@@ -73,7 +73,8 @@ public class DryRunEmailProcessor implements EmailProcessingStrategy {
 
     private void writeOutputFiles(EmailService.EmailContent content) throws IOException {
         // Generate safe filename from first email (for uniqueness)
-        String safeEmail = content.recipientEmail().replaceAll("[^a-zA-Z0-9@.]", "_");
+        String firstEmail = content.recipientEmail();
+        String safeEmail = firstEmail != null ? firstEmail.replaceAll("[^a-zA-Z0-9@.]", "_") : "unknown";
         String baseFilename = String.format("row%d_%s", content.rowNumber(), safeEmail);
 
         // Write HTML body
@@ -92,9 +93,10 @@ public class DryRunEmailProcessor implements EmailProcessingStrategy {
         String metadata = String.format("""
                 To: %s
                 Subject: %s
+                Attachment Filename: %s
                 Row Number: %d
                 Recipient Count: %d
-                """, recipientsDisplay, content.subject(), content.rowNumber(), content.recipientEmails().size());
+                """, recipientsDisplay, content.subject(), content.attachmentFilename(), content.rowNumber(), content.recipientEmails().size());
         Files.writeString(metaPath, metadata);
         logger.info("  -> Written: {}", metaPath);
     }
