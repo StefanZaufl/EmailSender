@@ -132,15 +132,15 @@ public class TemplateService {
     }
 
     /**
-     * Processes the attachment filename template with simple placeholder replacement.
+     * Processes a filename template with simple placeholder replacement.
      * Uses {{fieldName}} syntax for placeholders.
      *
+     * @param filenameTemplate the filename template with {{placeholders}}
      * @param emailData the data to use for template substitution
-     * @return the processed attachment filename
+     * @return the processed filename
      */
-    public String processAttachmentFilename(EmailData emailData) {
-        String filenameTemplate = appConfig.getEmail().getAttachmentFilename();
-        logger.debug("Processing attachment filename template: {}", filenameTemplate);
+    public String processFilename(String filenameTemplate, EmailData emailData) {
+        logger.debug("Processing filename template: {}", filenameTemplate);
 
         String result = filenameTemplate;
         Map<String, String> fields = emailData.getFields();
@@ -167,7 +167,7 @@ public class TemplateService {
             if (value != null) {
                 result = result.replace(placeholder, value);
             } else {
-                logger.warn("No value found for placeholder '{}' in attachment filename template", placeholder);
+                logger.warn("No value found for placeholder '{}' in filename template", placeholder);
             }
         }
 

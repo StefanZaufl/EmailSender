@@ -22,6 +22,8 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -66,7 +68,8 @@ class EmailServiceTest {
         // Set up template and PDF mocks
         when(templateService.processSubject(any())).thenReturn("Test Subject");
         when(templateService.processEmailBody(any())).thenReturn("<html><body>Test</body></html>");
-        when(pdfGeneratorService.generatePdf(any())).thenReturn(new byte[]{1, 2, 3});
+        when(templateService.processFilename(anyString(), any())).thenReturn("test.pdf");
+        when(pdfGeneratorService.generatePdf(anyString(), any())).thenReturn(new byte[]{1, 2, 3});
 
         // Default to user sender type
         when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
@@ -273,7 +276,8 @@ class EmailServiceTest {
         EmailData emailData = createEmailData();
         when(templateService.processSubject(emailData)).thenReturn("Custom Subject");
         when(templateService.processEmailBody(emailData)).thenReturn("<html>Custom Body</html>");
-        when(pdfGeneratorService.generatePdf(emailData)).thenReturn(new byte[]{4, 5, 6});
+        when(templateService.processFilename(anyString(), eq(emailData))).thenReturn("custom.pdf");
+        when(pdfGeneratorService.generatePdf(anyString(), eq(emailData))).thenReturn(new byte[]{4, 5, 6});
 
         // Act
         EmailService.EmailContent content = emailService.prepareEmail(emailData);
@@ -282,7 +286,9 @@ class EmailServiceTest {
         assertEquals("test@example.com", content.recipientEmail());
         assertEquals("Custom Subject", content.subject());
         assertEquals("<html>Custom Body</html>", content.htmlBody());
-        assertArrayEquals(new byte[]{4, 5, 6}, content.pdfAttachment());
+        assertEquals(1, content.attachments().size());
+        assertArrayEquals(new byte[]{4, 5, 6}, content.attachments().getFirst().content());
+        assertEquals("custom.pdf", content.attachments().getFirst().filename());
         assertEquals(1, content.rowNumber());
     }
 
@@ -304,7 +310,8 @@ class EmailServiceTest {
         EmailData emailData = createMultiRecipientEmailData();
         when(templateService.processSubject(emailData)).thenReturn("Custom Subject");
         when(templateService.processEmailBody(emailData)).thenReturn("<html>Custom Body</html>");
-        when(pdfGeneratorService.generatePdf(emailData)).thenReturn(new byte[]{4, 5, 6});
+        when(templateService.processFilename(anyString(), eq(emailData))).thenReturn("report.pdf");
+        when(pdfGeneratorService.generatePdf(anyString(), eq(emailData))).thenReturn(new byte[]{4, 5, 6});
 
         // Act
         EmailService.EmailContent content = emailService.prepareEmail(emailData);
@@ -449,14 +456,16 @@ class EmailServiceTest {
 
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody("/path/to/email.html");
-        templatesConfig.setAttachment("/path/to/attachment.docx");
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate("/path/to/attachment.docx");
+        attachmentConfig.setFilename("test.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
         emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Test Subject");
         emailConfig.setRecipientColumn("Email");
-        emailConfig.setAttachmentFilename("test.pdf");
         config.setEmail(emailConfig);
 
         // Throttling config with short delays for fast tests

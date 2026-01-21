@@ -90,8 +90,11 @@ class DryRunEmailProcessorTest {
                 List.of("john@example.com"),
                 "Test Subject",
                 "<html><body>Test Body</body></html>",
-                new byte[]{0x25, 0x50, 0x44, 0x46}, // %PDF
-                "report.pdf",
+                List.of(new EmailService.AttachmentData(
+                        new byte[]{0x25, 0x50, 0x44, 0x46}, // %PDF
+                        "report.pdf",
+                        "application/pdf"
+                )),
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -122,8 +125,11 @@ class DryRunEmailProcessorTest {
                 List.of("test@example.com"),
                 "Subject",
                 expectedBody,
-                new byte[]{},
-                "attachment.pdf",
+                List.of(new EmailService.AttachmentData(
+                        new byte[]{},
+                        "attachment.pdf",
+                        "application/pdf"
+                )),
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -149,8 +155,11 @@ class DryRunEmailProcessorTest {
                 List.of("meta@example.com"),
                 "Important Subject",
                 "<html></html>",
-                new byte[]{},
-                "document.pdf",
+                List.of(new EmailService.AttachmentData(
+                        new byte[]{},
+                        "document.pdf",
+                        "application/pdf"
+                )),
                 5
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -164,9 +173,10 @@ class DryRunEmailProcessorTest {
 
         assertTrue(metaContent.contains("meta@example.com"));
         assertTrue(metaContent.contains("Important Subject"));
-        assertTrue(metaContent.contains("Attachment Filename: document.pdf"));
+        assertTrue(metaContent.contains("document.pdf"));
         assertTrue(metaContent.contains("Row Number: 5"));
         assertTrue(metaContent.contains("Recipient Count: 1"));
+        assertTrue(metaContent.contains("Attachment Count: 1"));
     }
 
     @Test
@@ -181,8 +191,11 @@ class DryRunEmailProcessorTest {
                 List.of("user+tag@example.com"),
                 "Subject",
                 "<html></html>",
-                new byte[]{},
-                "report.pdf",
+                List.of(new EmailService.AttachmentData(
+                        new byte[]{},
+                        "report.pdf",
+                        "application/pdf"
+                )),
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
@@ -208,8 +221,11 @@ class DryRunEmailProcessorTest {
                 List.of("pdf@example.com"),
                 "Subject",
                 "<html></html>",
-                expectedPdf,
-                "document.pdf",
+                List.of(new EmailService.AttachmentData(
+                        expectedPdf,
+                        "document.pdf",
+                        "application/pdf"
+                )),
                 1
         );
         when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);

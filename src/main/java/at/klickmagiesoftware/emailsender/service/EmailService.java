@@ -45,8 +45,9 @@ public class EmailService {
     }
 
     /**
-     * Sends a personalized email with PDF attachment to the recipients specified in the EmailData.
+     * Sends a personalized email with PDF attachments to the recipients specified in the EmailData.
      * Supports multiple recipients (semicolon-separated in the data source).
+     * Supports multiple attachment templates, each processed and attached to the email.
      * Includes retry logic with exponential backoff for handling throttling (HTTP 429) errors.
      *
      * @param emailData the data for the email to send
@@ -61,16 +62,16 @@ public class EmailService {
             // Process templates
             String subject = templateService.processSubject(emailData);
             String htmlBody = templateService.processEmailBody(emailData);
-            byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
-            String attachmentFilename = templateService.processAttachmentFilename(emailData);
+            List<AttachmentData> attachments = generateAllAttachments(emailData);
 
-            // Build the email message with all recipients
-            Message message = createMessage(emailData.getRecipientEmails(), subject, htmlBody, pdfAttachment, attachmentFilename);
+            // Build the email message with all recipients and attachments
+            Message message = createMessage(emailData.getRecipientEmails(), subject, htmlBody, attachments);
 
             // Send via Microsoft Graph with retry logic
             sendWithRetry(emailData, message);
 
-            logger.info("Email sent successfully to: {} (row {})", recipientsDisplay, emailData.getRowNumber());
+            logger.info("Email sent successfully to: {} (row {}) with {} attachment(s)",
+                    recipientsDisplay, emailData.getRowNumber(), attachments.size());
 
         } catch (EmailSenderException e) {
             throw e;
@@ -78,6 +79,24 @@ public class EmailService {
             throw new EmailSenderException("Failed to send email to " + recipientsDisplay +
                     " (row " + emailData.getRowNumber() + ")", e);
         }
+    }
+
+    /**
+     * Generates all PDF attachments based on the configured attachment templates.
+     *
+     * @param emailData the data to use for template substitution
+     * @return list of attachment data with PDF content and filenames
+     */
+    private List<AttachmentData> generateAllAttachments(EmailData emailData) {
+        List<AttachmentData> attachments = new ArrayList<>();
+
+        for (AppConfig.AttachmentConfig attachmentConfig : appConfig.getTemplates().getAttachments()) {
+            byte[] pdfBytes = pdfGeneratorService.generatePdf(attachmentConfig.getTemplate(), emailData);
+            String filename = templateService.processFilename(attachmentConfig.getFilename(), emailData);
+            attachments.add(new AttachmentData(pdfBytes, filename, "application/pdf"));
+        }
+
+        return attachments;
     }
 
     /**
@@ -206,7 +225,7 @@ public class EmailService {
 
     /**
      * Prepares email content for dry-run mode without actually sending.
-     * Returns processed subject, HTML body, PDF bytes, and attachment filename.
+     * Returns processed subject, HTML body, and all attachment data.
      *
      * @param emailData the data for the email
      * @return an EmailContent record with all processed content
@@ -216,20 +235,19 @@ public class EmailService {
 
         String subject = templateService.processSubject(emailData);
         String htmlBody = templateService.processEmailBody(emailData);
-        byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
-        String attachmentFilename = templateService.processAttachmentFilename(emailData);
+        List<AttachmentData> attachments = generateAllAttachments(emailData);
 
         return new EmailContent(
                 emailData.getRecipientEmails(),
                 subject,
                 htmlBody,
-                pdfAttachment,
-                attachmentFilename,
+                attachments,
                 emailData.getRowNumber()
         );
     }
 
-    private Message createMessage(List<String> recipientEmails, String subject, String htmlBody, byte[] pdfAttachment, String attachmentFilename) {
+    private Message createMessage(List<String> recipientEmails, String subject, String htmlBody,
+                                   List<AttachmentData> attachmentDataList) {
         Message message = new Message();
 
         // Set recipients - support multiple recipients
@@ -252,30 +270,39 @@ public class EmailService {
         body.setContent(htmlBody);
         message.setBody(body);
 
-        // Add PDF attachment
-        FileAttachment attachment = new FileAttachment();
-        attachment.setOdataType("#microsoft.graph.fileAttachment");
-        attachment.setName(attachmentFilename);
-        attachment.setContentType("application/pdf");
-        attachment.setContentBytes(pdfAttachment);
-
+        // Add all attachments
         List<Attachment> attachments = new ArrayList<>();
-        attachments.add(attachment);
+        for (AttachmentData attachmentData : attachmentDataList) {
+            FileAttachment attachment = new FileAttachment();
+            attachment.setOdataType("#microsoft.graph.fileAttachment");
+            attachment.setName(attachmentData.filename());
+            attachment.setContentType(attachmentData.contentType());
+            attachment.setContentBytes(attachmentData.content());
+            attachments.add(attachment);
+        }
         message.setAttachments(attachments);
 
         return message;
     }
 
     /**
+     * Record to hold a single attachment with its content and metadata.
+     */
+    public record AttachmentData(
+            byte[] content,
+            String filename,
+            String contentType
+    ) {}
+
+    /**
      * Record to hold prepared email content for dry-run mode.
-     * Supports multiple recipients.
+     * Supports multiple recipients and multiple attachments.
      */
     public record EmailContent(
             List<String> recipientEmails,
             String subject,
             String htmlBody,
-            byte[] pdfAttachment,
-            String attachmentFilename,
+            List<AttachmentData> attachments,
             int rowNumber
     ) {
         /**

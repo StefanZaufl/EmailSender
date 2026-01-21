@@ -348,7 +348,10 @@ class ReportServiceTest {
 
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody("/path/to/email.html");
-        templatesConfig.setAttachment("/path/to/attachment.docx");
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate("/path/to/attachment.docx");
+        attachmentConfig.setFilename("document.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();

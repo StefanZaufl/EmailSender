@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -217,11 +218,10 @@ class TemplateServiceTest {
     }
 
     @Test
-    void processAttachmentFilename_simplePlaceholders_replacesCorrectly() throws IOException {
+    void processFilename_simplePlaceholders_replacesCorrectly() throws IOException {
         // Arrange
         Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
         appConfig.getTemplates().setEmailBody(templatePath.toString());
-        appConfig.getEmail().setAttachmentFilename("{{name}}_{{company}}_report.pdf");
 
         TemplateService service = new TemplateService(appConfig);
 
@@ -231,18 +231,17 @@ class TemplateServiceTest {
         EmailData emailData = new EmailData("john@example.com", fields, 1);
 
         // Act
-        String result = service.processAttachmentFilename(emailData);
+        String result = service.processFilename("{{name}}_{{company}}_report.pdf", emailData);
 
         // Assert
         assertEquals("John_Acme_report.pdf", result);
     }
 
     @Test
-    void processAttachmentFilename_withFieldMappings_usesMapping() throws IOException {
+    void processFilename_withFieldMappings_usesMapping() throws IOException {
         // Arrange
         Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
         appConfig.getTemplates().setEmailBody(templatePath.toString());
-        appConfig.getEmail().setAttachmentFilename("{{name}}_report.pdf");
 
         Map<String, String> fieldMappings = new HashMap<>();
         fieldMappings.put("{{name}}", "FullName");
@@ -256,18 +255,17 @@ class TemplateServiceTest {
         EmailData emailData = new EmailData("jane@example.com", fields, 1);
 
         // Act
-        String result = service.processAttachmentFilename(emailData);
+        String result = service.processFilename("{{name}}_report.pdf", emailData);
 
         // Assert
         assertEquals("Jane Smith_report.pdf", result);
     }
 
     @Test
-    void processAttachmentFilename_noPlaceholders_returnsOriginal() throws IOException {
+    void processFilename_noPlaceholders_returnsOriginal() throws IOException {
         // Arrange
         Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
         appConfig.getTemplates().setEmailBody(templatePath.toString());
-        appConfig.getEmail().setAttachmentFilename("static-report.pdf");
 
         TemplateService service = new TemplateService(appConfig);
 
@@ -275,18 +273,17 @@ class TemplateServiceTest {
         EmailData emailData = new EmailData("john@example.com", fields, 1);
 
         // Act
-        String result = service.processAttachmentFilename(emailData);
+        String result = service.processFilename("static-report.pdf", emailData);
 
         // Assert
         assertEquals("static-report.pdf", result);
     }
 
     @Test
-    void processAttachmentFilename_missingPlaceholder_keepsPlaceholder() throws IOException {
+    void processFilename_missingPlaceholder_keepsPlaceholder() throws IOException {
         // Arrange
         Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
         appConfig.getTemplates().setEmailBody(templatePath.toString());
-        appConfig.getEmail().setAttachmentFilename("{{name}}_{{code}}_report.pdf");
 
         TemplateService service = new TemplateService(appConfig);
 
@@ -296,7 +293,7 @@ class TemplateServiceTest {
         EmailData emailData = new EmailData("john@example.com", fields, 1);
 
         // Act
-        String result = service.processAttachmentFilename(emailData);
+        String result = service.processFilename("{{name}}_{{code}}_report.pdf", emailData);
 
         // Assert
         assertEquals("John_{{code}}_report.pdf", result);
@@ -326,7 +323,10 @@ class TemplateServiceTest {
 
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody("/path/to/email.html");
-        templatesConfig.setAttachment("/path/to/attachment.docx");
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate("/path/to/attachment.docx");
+        attachmentConfig.setFilename("document.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();

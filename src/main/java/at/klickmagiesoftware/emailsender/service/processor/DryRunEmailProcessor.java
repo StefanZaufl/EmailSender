@@ -82,21 +82,35 @@ public class DryRunEmailProcessor implements EmailProcessingStrategy {
         Files.writeString(htmlPath, content.htmlBody());
         logger.info("  -> Written: {}", htmlPath);
 
-        // Write PDF attachment
-        Path pdfPath = outputDirectory.resolve(baseFilename + "_attachment.pdf");
-        Files.write(pdfPath, content.pdfAttachment());
-        logger.info("  -> Written: {}", pdfPath);
+        // Write all PDF attachments
+        var attachments = content.attachments();
+        for (int i = 0; i < attachments.size(); i++) {
+            EmailService.AttachmentData attachment = attachments.get(i);
+            // Use indexed suffix for multiple attachments, simpler suffix for single attachment
+            String suffix = attachments.size() == 1
+                    ? "_attachment.pdf"
+                    : String.format("_attachment_%d.pdf", i);
+            Path pdfPath = outputDirectory.resolve(baseFilename + suffix);
+            Files.write(pdfPath, attachment.content());
+            logger.info("  -> Written: {} (filename: {})", pdfPath, attachment.filename());
+        }
 
-        // Write email metadata with all recipients
+        // Write email metadata with all recipients and attachments
         Path metaPath = outputDirectory.resolve(baseFilename + "_meta.txt");
         String recipientsDisplay = content.recipientsAsString();
+        StringBuilder attachmentsList = new StringBuilder();
+        for (EmailService.AttachmentData att : attachments) {
+            attachmentsList.append("\n  - ").append(att.filename());
+        }
         String metadata = String.format("""
                 To: %s
                 Subject: %s
-                Attachment Filename: %s
+                Attachments:%s
                 Row Number: %d
                 Recipient Count: %d
-                """, recipientsDisplay, content.subject(), content.attachmentFilename(), content.rowNumber(), content.recipientEmails().size());
+                Attachment Count: %d
+                """, recipientsDisplay, content.subject(), attachmentsList, content.rowNumber(),
+                content.recipientEmails().size(), attachments.size());
         Files.writeString(metaPath, metadata);
         logger.info("  -> Written: {}", metaPath);
     }
