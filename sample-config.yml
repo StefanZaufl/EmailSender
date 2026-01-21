@@ -27,9 +27,15 @@ email-sender:
     # Path to the Thymeleaf HTML template for email body
     # Use ${fieldName} or [[${fieldName}]] syntax for Thymeleaf variables
     email-body: /path/to/email-template.html
-    # Path to the Word document template for PDF attachment
-    # Use {{fieldName}} syntax for placeholders in the Word document
-    attachment: /path/to/document-template.docx
+    # List of Word document templates for PDF attachments
+    # Each attachment has a template path and an output filename
+    # Use {{fieldName}} syntax for placeholders in templates and filenames
+    attachments:
+      - template: /path/to/document-template.docx
+        filename: "{{name}}_report.pdf"
+      # You can add more attachments:
+      # - template: /path/to/another-template.docx
+      #   filename: "{{name}}_summary.pdf"
 
   email:
     # The user email address that sends emails (required)
@@ -43,8 +49,6 @@ email-sender:
     subject-template: "Hello {{name}}, your report is ready"
     # Column name in the data source containing recipient email addresses
     recipient-column: "Email"
-    # Filename for the PDF attachment
-    attachment-filename: "report.pdf"
 
   # Throttling configuration to prevent email rejection due to rate limits
   # Microsoft Graph API / Exchange Online limits:

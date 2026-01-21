@@ -184,14 +184,19 @@ email-sender:
 
   templates:
     email-body: /path/to/email-template.html
-    attachment: /path/to/document-template.docx
+    # List of Word document templates for PDF attachments
+    attachments:
+      - template: /path/to/document-template.docx
+        filename: "{{name}}_report.pdf"
+      # Add more attachments as needed:
+      # - template: /path/to/another-template.docx
+      #   filename: "{{name}}_summary.pdf"
 
   email:
     sender-email: sender@yourcompany.com
     # sender-group: team@yourcompany.com  # Optional: set to send from a group
     subject-template: "Hello {{name}}, your report is ready"
     recipient-column: "Email"
-    attachment-filename: "report.pdf"  # optional
 
   # Optional: map placeholders to different column names
   field-mappings:

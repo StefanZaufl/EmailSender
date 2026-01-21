@@ -40,13 +40,13 @@ public class PdfGeneratorService {
     }
 
     /**
-     * Generates a PDF from the Word template with data from the given EmailData.
+     * Generates a PDF from the specified Word template with data from the given EmailData.
      *
+     * @param templatePath the path to the Word template file
      * @param emailData the data to use for template substitution
      * @return the generated PDF as a byte array
      */
-    public byte[] generatePdf(EmailData emailData) {
-        String templatePath = appConfig.getTemplates().getAttachment();
+    public byte[] generatePdf(String templatePath, EmailData emailData) {
         logger.debug("Generating PDF from template: {} for row {}", templatePath, emailData.getRowNumber());
 
         try {
@@ -74,14 +74,14 @@ public class PdfGeneratorService {
     }
 
     /**
-     * Generates a personalized Word document (DOCX) from the template.
+     * Generates a personalized Word document (DOCX) from the specified template.
      * Useful for dry-run mode to inspect the processed document before PDF conversion.
      *
+     * @param templatePath the path to the Word template file
      * @param emailData the data to use for template substitution
      * @return the generated DOCX as a byte array
      */
-    public byte[] generateDocx(EmailData emailData) {
-        String templatePath = appConfig.getTemplates().getAttachment();
+    public byte[] generateDocx(String templatePath, EmailData emailData) {
         logger.debug("Generating DOCX from template: {} for row {}", templatePath, emailData.getRowNumber());
 
         try {

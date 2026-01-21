@@ -195,16 +195,24 @@ public class SendEmailCommand implements Callable<Integer> {
             throw new EmailSenderException("Data source file not found: " + dsConfig.getPath());
         }
 
-        // Validate template files exist
+        // Validate email body template exists
         if (!Files.exists(Path.of(templatesConfig.getEmailBody()))) {
             throw new EmailSenderException("Email body template not found: " + templatesConfig.getEmailBody());
         }
 
-        if (!Files.exists(Path.of(templatesConfig.getAttachment()))) {
-            throw new EmailSenderException("Attachment template not found: " + templatesConfig.getAttachment());
+        // Validate all attachment templates exist
+        List<AppConfig.AttachmentConfig> attachments = templatesConfig.getAttachments();
+        if (attachments.isEmpty()) {
+            throw new EmailSenderException("No attachment templates configured");
         }
 
-        logger.info("Configuration validated successfully");
+        for (AppConfig.AttachmentConfig attachment : attachments) {
+            if (!Files.exists(Path.of(attachment.getTemplate()))) {
+                throw new EmailSenderException("Attachment template not found: " + attachment.getTemplate());
+            }
+        }
+
+        logger.info("Configuration validated successfully ({} attachment template(s))", attachments.size());
     }
 
     private List<EmailData> readDataSource() {

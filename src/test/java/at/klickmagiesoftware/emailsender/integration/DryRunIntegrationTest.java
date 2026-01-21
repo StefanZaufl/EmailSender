@@ -293,7 +293,7 @@ class DryRunIntegrationTest {
         assertTrue(Files.exists(reportPath), "Report file should be created");
         List<String> reportLines = Files.readAllLines(reportPath);
         assertEquals(5, reportLines.size(), "Report should have header + 4 data rows (3 from first row + 1 from second)");
-        assertEquals("Email,Status", reportLines.get(0));
+        assertEquals("Email,Status", reportLines.getFirst());
 
         // All 4 recipients should be recorded
         long successCount = reportLines.stream().filter(line -> line.contains("Success")).count();
@@ -464,7 +464,10 @@ class DryRunIntegrationTest {
         // Templates config
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody(emailTemplatePath.toString());
-        templatesConfig.setAttachment(attachmentTemplatePath.toString());
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate(attachmentTemplatePath.toString());
+        attachmentConfig.setFilename("report.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         appConfig.setTemplates(templatesConfig);
 
         // Email config
@@ -472,7 +475,6 @@ class DryRunIntegrationTest {
         emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Report for {{FullName}}");
         emailConfig.setRecipientColumn("Email");
-        emailConfig.setAttachmentFilename("report.pdf");
         appConfig.setEmail(emailConfig);
 
         // Throttling config (disabled for tests)

@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -76,7 +77,6 @@ class PdfGeneratorServiceTest {
 
         // Arrange
         Path docxPath = createSimpleDocxTemplate();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -84,7 +84,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generatePdf(emailData);
+        byte[] result = service.generatePdf(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -100,7 +100,6 @@ class PdfGeneratorServiceTest {
 
         // Arrange
         Path docxPath = createDocxTemplateWithPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -110,7 +109,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generatePdf(emailData);
+        byte[] result = service.generatePdf(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -120,22 +119,20 @@ class PdfGeneratorServiceTest {
     @Test
     void generatePdf_templateNotFound_throwsException() {
         // Arrange
-        appConfig.getTemplates().setAttachment("/nonexistent/template.docx");
-
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
         Map<String, String> fields = new HashMap<>();
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act & Assert
-        assertThrows(EmailSenderException.class, () -> service.generatePdf(emailData));
+        assertThrows(EmailSenderException.class,
+                () -> service.generatePdf("/nonexistent/template.docx", emailData));
     }
 
     @Test
     void generateDocx_validTemplate_returnsDocxBytes() throws Exception {
         // Arrange
         Path docxPath = createSimpleDocxTemplate();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -143,7 +140,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -156,22 +153,20 @@ class PdfGeneratorServiceTest {
     @Test
     void generateDocx_templateNotFound_throwsException() {
         // Arrange
-        appConfig.getTemplates().setAttachment("/nonexistent/template.docx");
-
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
         Map<String, String> fields = new HashMap<>();
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act & Assert
-        assertThrows(EmailSenderException.class, () -> service.generateDocx(emailData));
+        assertThrows(EmailSenderException.class,
+                () -> service.generateDocx("/nonexistent/template.docx", emailData));
     }
 
     @Test
     void generateDocx_templateWithPlaceholders_returnsValidDocx() throws Exception {
         // Arrange
         Path docxPath = createDocxTemplateWithPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -181,7 +176,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -198,7 +193,6 @@ class PdfGeneratorServiceTest {
 
         // Arrange
         Path docxPath = createDocxTemplateWithPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         Map<String, String> fieldMappings = new HashMap<>();
         fieldMappings.put("{{name}}", "FullName");
@@ -212,7 +206,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generatePdf(emailData);
+        byte[] result = service.generatePdf(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -223,7 +217,6 @@ class PdfGeneratorServiceTest {
     void generateDocx_withFieldMappings_usesMapping() throws Exception {
         // Arrange
         Path docxPath = createDocxTemplateWithPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         Map<String, String> fieldMappings = new HashMap<>();
         fieldMappings.put("{{name}}", "FullName");
@@ -237,7 +230,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -248,7 +241,6 @@ class PdfGeneratorServiceTest {
     void generateDocx_multipleRows_generatesUniqueDocx() throws Exception {
         // Arrange
         Path docxPath = createDocxTemplateWithPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -263,8 +255,8 @@ class PdfGeneratorServiceTest {
         EmailData emailData2 = new EmailData("jane@example.com", fields2, 2);
 
         // Act
-        byte[] result1 = service.generateDocx(emailData1);
-        byte[] result2 = service.generateDocx(emailData2);
+        byte[] result1 = service.generateDocx(docxPath.toString(), emailData1);
+        byte[] result2 = service.generateDocx(docxPath.toString(), emailData2);
 
         // Assert
         assertNotNull(result1);
@@ -277,7 +269,6 @@ class PdfGeneratorServiceTest {
     void generateDocx_templateWithGermanCharacterPlaceholders_replacesValues() throws Exception {
         // Arrange
         Path docxPath = createDocxTemplateWithGermanPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -288,7 +279,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -310,7 +301,6 @@ class PdfGeneratorServiceTest {
     void generateDocx_templateWithHyphenPlaceholders_replacesValues() throws Exception {
         // Arrange
         Path docxPath = createDocxTemplateWithHyphenPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -321,7 +311,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -343,7 +333,6 @@ class PdfGeneratorServiceTest {
         // Arrange
         // This test simulates what happens when Word splits a placeholder with formatting
         Path docxPath = createDocxTemplateWithXmlInterruptedPlaceholders();
-        appConfig.getTemplates().setAttachment(docxPath.toString());
 
         PdfGeneratorService service = new PdfGeneratorService(appConfig);
 
@@ -353,7 +342,7 @@ class PdfGeneratorServiceTest {
         EmailData emailData = new EmailData("test@example.com", fields, 1);
 
         // Act
-        byte[] result = service.generateDocx(emailData);
+        byte[] result = service.generateDocx(docxPath.toString(), emailData);
 
         // Assert
         assertNotNull(result);
@@ -486,7 +475,10 @@ class PdfGeneratorServiceTest {
 
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody("/path/to/email.html");
-        templatesConfig.setAttachment("/path/to/attachment.docx");
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate("/path/to/attachment.docx");
+        attachmentConfig.setFilename("document.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();

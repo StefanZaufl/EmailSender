@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -122,14 +123,16 @@ class SenderTypeResolverTest {
 
         AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
         templatesConfig.setEmailBody("/path/to/email.html");
-        templatesConfig.setAttachment("/path/to/attachment.docx");
+        AppConfig.AttachmentConfig attachmentConfig = new AppConfig.AttachmentConfig();
+        attachmentConfig.setTemplate("/path/to/attachment.docx");
+        attachmentConfig.setFilename("test.pdf");
+        templatesConfig.setAttachments(List.of(attachmentConfig));
         config.setTemplates(templatesConfig);
 
         AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
         emailConfig.setSenderEmail("sender@example.com");
         emailConfig.setSubjectTemplate("Test Subject");
         emailConfig.setRecipientColumn("Email");
-        emailConfig.setAttachmentFilename("test.pdf");
         config.setEmail(emailConfig);
 
         AppConfig.ThrottlingConfig throttlingConfig = new AppConfig.ThrottlingConfig();

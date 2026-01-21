@@ -3,6 +3,7 @@ package at.klickmagiesoftware.emailsender.config;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -220,8 +221,9 @@ public class AppConfig {
         @NotBlank
         private String emailBody;
 
-        @NotBlank
-        private String attachment;
+        @Valid
+        @NotEmpty(message = "At least one attachment must be configured")
+        private List<AttachmentConfig> attachments = new ArrayList<>();
 
         public String getEmailBody() {
             return emailBody;
@@ -231,12 +233,40 @@ public class AppConfig {
             this.emailBody = emailBody;
         }
 
-        public String getAttachment() {
-            return attachment;
+        public List<AttachmentConfig> getAttachments() {
+            return attachments;
         }
 
-        public void setAttachment(String attachment) {
-            this.attachment = attachment;
+        public void setAttachments(List<AttachmentConfig> attachments) {
+            this.attachments = attachments != null ? attachments : new ArrayList<>();
+        }
+    }
+
+    /**
+     * Configuration for a single attachment template.
+     */
+    public static class AttachmentConfig {
+
+        @NotBlank(message = "Attachment template path is required")
+        private String template;
+
+        @NotBlank(message = "Attachment filename is required")
+        private String filename;
+
+        public String getTemplate() {
+            return template;
+        }
+
+        public void setTemplate(String template) {
+            this.template = template;
+        }
+
+        public String getFilename() {
+            return filename;
+        }
+
+        public void setFilename(String filename) {
+            this.filename = filename;
         }
     }
 
@@ -266,8 +296,6 @@ public class AppConfig {
 
         @NotBlank
         private String recipientColumn;
-
-        private String attachmentFilename = "document.pdf";
 
         public String getSenderEmail() {
             return senderEmail;
@@ -299,14 +327,6 @@ public class AppConfig {
 
         public void setRecipientColumn(String recipientColumn) {
             this.recipientColumn = recipientColumn;
-        }
-
-        public String getAttachmentFilename() {
-            return attachmentFilename;
-        }
-
-        public void setAttachmentFilename(String attachmentFilename) {
-            this.attachmentFilename = attachmentFilename;
         }
     }
 
