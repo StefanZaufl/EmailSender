@@ -8,8 +8,10 @@ import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,6 +43,9 @@ public class AppConfig {
 
     @Valid
     private ReportConfig report;
+
+    @Valid
+    private PdfConfig pdf = new PdfConfig();
 
     private Map<String, String> fieldMappings = new HashMap<>();
 
@@ -90,6 +95,14 @@ public class AppConfig {
 
     public void setReport(ReportConfig report) {
         this.report = report;
+    }
+
+    public PdfConfig getPdf() {
+        return pdf;
+    }
+
+    public void setPdf(PdfConfig pdf) {
+        this.pdf = pdf != null ? pdf : new PdfConfig();
     }
 
     public Map<String, String> getFieldMappings() {
@@ -389,6 +402,30 @@ public class AppConfig {
 
         public void setOutputPath(String outputPath) {
             this.outputPath = outputPath;
+        }
+    }
+
+    /**
+     * PDF generation configuration for docx4j font handling.
+     */
+    public static class PdfConfig {
+
+        /**
+         * Additional font name patterns to include in the font allow-list.
+         * These patterns are added to the default safe font list when using
+         * 'auto' or 'minimal' font-config mode.
+         * <p>
+         * Each entry should be a font name pattern (case-insensitive).
+         * Example: ["roboto", "opensans", "sourcesans"]
+         */
+        private List<String> additionalFonts = new ArrayList<>();
+
+        public List<String> getAdditionalFonts() {
+            return Collections.unmodifiableList(additionalFonts);
+        }
+
+        public void setAdditionalFonts(List<String> additionalFonts) {
+            this.additionalFonts = additionalFonts != null ? additionalFonts : new ArrayList<>();
         }
     }
 }

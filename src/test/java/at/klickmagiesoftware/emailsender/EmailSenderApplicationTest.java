@@ -1,6 +1,7 @@
 package at.klickmagiesoftware.emailsender;
 
 import at.klickmagiesoftware.emailsender.cli.SendEmailCommand;
+import at.klickmagiesoftware.emailsender.config.AppConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -9,6 +10,7 @@ import picocli.CommandLine.IFactory;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for EmailSenderApplication, focusing on Spring argument filtering.
@@ -21,7 +23,11 @@ class EmailSenderApplicationTest {
     void setUp() {
         IFactory factory = mock(IFactory.class);
         SendEmailCommand command = mock(SendEmailCommand.class);
-        application = new EmailSenderApplication(factory, command);
+        AppConfig appConfig = mock(AppConfig.class);
+        AppConfig.PdfConfig pdfConfig = mock(AppConfig.PdfConfig.class);
+        when(appConfig.getPdf()).thenReturn(pdfConfig);
+        when(pdfConfig.getAdditionalFonts()).thenReturn(java.util.List.of());
+        application = new EmailSenderApplication(factory, command, appConfig);
     }
 
     // Tests for isSpringArgument()

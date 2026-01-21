@@ -1,6 +1,7 @@
 package at.klickmagiesoftware.emailsender.cli;
 
 import at.klickmagiesoftware.emailsender.config.AppConfig;
+import at.klickmagiesoftware.emailsender.config.FontConfigMode;
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
 import at.klickmagiesoftware.emailsender.service.DataSourceReader;
@@ -48,6 +49,12 @@ public class SendEmailCommand implements Callable<Integer> {
 
     @Option(names = {"--output-dir", "-o"}, description = "Output directory for dry-run mode (default: ./output)")
     private String outputDir = "./output";
+
+    @Option(names = {"--font-config"}, description = "Font configuration mode for PDF generation: " +
+            "auto (default, minimal fonts on non-Windows), " +
+            "autoDiscoverFonts (use all system fonts), " +
+            "minimal (always use minimal safe font list)")
+    private FontConfigMode fontConfig = FontConfigMode.AUTO;
 
     public SendEmailCommand(AppConfig appConfig,
                             List<DataSourceReader> dataSourceReaders,

@@ -5,8 +5,12 @@ import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
 import org.docx4j.Docx4J;
 import org.docx4j.XmlUtils;
+import org.docx4j.jaxb.Context;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
+import org.docx4j.openpackaging.parts.WordprocessingML.StyleDefinitionsPart;
+import org.docx4j.wml.Style;
+import org.docx4j.wml.Styles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -49,6 +53,9 @@ public class PdfGeneratorService {
             // Load the Word template
             WordprocessingMLPackage wordDoc = WordprocessingMLPackage.load(new File(templatePath));
 
+            // Ensure the document has a default paragraph style to avoid docx4j warnings
+            ensureDefaultParagraphStyle(wordDoc);
+
             // Replace placeholders in the document
             replacePlaceholders(wordDoc, emailData);
 
@@ -81,6 +88,9 @@ public class PdfGeneratorService {
             // Load the Word template
             WordprocessingMLPackage wordDoc = WordprocessingMLPackage.load(new File(templatePath));
 
+            // Ensure the document has a default paragraph style to avoid docx4j warnings
+            ensureDefaultParagraphStyle(wordDoc);
+
             // Replace placeholders in the document
             replacePlaceholders(wordDoc, emailData);
 
@@ -95,6 +105,42 @@ public class PdfGeneratorService {
 
         } catch (Exception e) {
             throw new EmailSenderException("Failed to generate DOCX for row " + emailData.getRowNumber(), e);
+        }
+    }
+
+    /**
+     * Ensures the document has a default paragraph style defined.
+     * Word templates created by certain tools may not have a default paragraph style,
+     * which causes docx4j to log warnings like "No default paragraph style defined".
+     * This method creates a default "Normal" paragraph style if none exists.
+     *
+     * @param wordDoc the WordprocessingMLPackage to configure
+     */
+    private void ensureDefaultParagraphStyle(WordprocessingMLPackage wordDoc) {
+        try {
+            StyleDefinitionsPart stylesPart = wordDoc.getMainDocumentPart().getStyleDefinitionsPart();
+            if (stylesPart != null && stylesPart.getDefaultParagraphStyle() == null) {
+                logger.debug("No default paragraph style found, creating default 'Normal' style");
+
+                // Create a new default paragraph style
+                Style normalStyle = Context.getWmlObjectFactory().createStyle();
+                normalStyle.setType("paragraph");
+                normalStyle.setStyleId("Normal");
+                normalStyle.setDefault(Boolean.TRUE);
+
+                // Set the style name
+                Style.Name styleName = Context.getWmlObjectFactory().createStyleName();
+                styleName.setVal("Normal");
+                normalStyle.setName(styleName);
+
+                // Add the style to the document's style definitions
+                Styles styles = stylesPart.getJaxbElement();
+                if (styles != null) {
+                    styles.getStyle().add(normalStyle);
+                }
+            }
+        } catch (Exception e) {
+            logger.debug("Could not ensure default paragraph style: {}", e.getMessage());
         }
     }
 
