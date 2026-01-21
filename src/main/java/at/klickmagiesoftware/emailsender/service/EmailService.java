@@ -62,12 +62,13 @@ public class EmailService {
             String subject = templateService.processSubject(emailData);
             String htmlBody = templateService.processEmailBody(emailData);
             byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
+            String attachmentFilename = templateService.processAttachmentFilename(emailData);
 
             // Build the email message with all recipients
-            Message message = createMessage(emailData.getRecipientEmails(), subject, htmlBody, pdfAttachment);
+            Message message = createMessage(emailData.getRecipientEmails(), subject, htmlBody, pdfAttachment, attachmentFilename);
 
             // Send via Microsoft Graph with retry logic
-            sendWithRetry(emailData, message, subject, htmlBody);
+            sendWithRetry(emailData, message);
 
             logger.info("Email sent successfully to: {} (row {})", recipientsDisplay, emailData.getRowNumber());
 
@@ -84,7 +85,7 @@ public class EmailService {
      * Uses exponential backoff between retries.
      * Routes to either user sendMail or group sendMail API based on sender type.
      */
-    private void sendWithRetry(EmailData emailData, Message message, String subject, String htmlBody) {
+    private void sendWithRetry(EmailData emailData, Message message) {
         AppConfig.ThrottlingConfig throttling = appConfig.getThrottling();
         int maxRetries = throttling.isEnabled() ? throttling.getMaxRetries() : 0;
         long delayMs = throttling.getInitialRetryDelayMs();
@@ -189,25 +190,23 @@ public class EmailService {
     private long parseRetryAfter(ApiException e, long defaultDelayMs) {
         // Try to extract Retry-After from response headers
         var headers = e.getResponseHeaders();
-        if (headers == null) {
+        var retryAfterValues = headers != null ? headers.get("Retry-After") : null;
+        if (retryAfterValues == null || retryAfterValues.isEmpty()) {
             return defaultDelayMs;
         }
-        var retryAfterValues = headers.get("Retry-After");
-        if (retryAfterValues != null && !retryAfterValues.isEmpty()) {
-            try {
-                // Retry-After can be in seconds
-                int seconds = Integer.parseInt(retryAfterValues.iterator().next());
-                return seconds * 1000L;
-            } catch (NumberFormatException nfe) {
-                logger.debug("Could not parse Retry-After header: {}", retryAfterValues);
-            }
+        try {
+            // Retry-After can be in seconds
+            int seconds = Integer.parseInt(retryAfterValues.iterator().next());
+            return seconds * 1000L;
+        } catch (NumberFormatException nfe) {
+            logger.debug("Could not parse Retry-After header: {}", retryAfterValues);
+            return defaultDelayMs;
         }
-        return defaultDelayMs;
     }
 
     /**
      * Prepares email content for dry-run mode without actually sending.
-     * Returns processed subject, HTML body, and PDF bytes.
+     * Returns processed subject, HTML body, PDF bytes, and attachment filename.
      *
      * @param emailData the data for the email
      * @return an EmailContent record with all processed content
@@ -218,17 +217,19 @@ public class EmailService {
         String subject = templateService.processSubject(emailData);
         String htmlBody = templateService.processEmailBody(emailData);
         byte[] pdfAttachment = pdfGeneratorService.generatePdf(emailData);
+        String attachmentFilename = templateService.processAttachmentFilename(emailData);
 
         return new EmailContent(
                 emailData.getRecipientEmails(),
                 subject,
                 htmlBody,
                 pdfAttachment,
+                attachmentFilename,
                 emailData.getRowNumber()
         );
     }
 
-    private Message createMessage(List<String> recipientEmails, String subject, String htmlBody, byte[] pdfAttachment) {
+    private Message createMessage(List<String> recipientEmails, String subject, String htmlBody, byte[] pdfAttachment, String attachmentFilename) {
         Message message = new Message();
 
         // Set recipients - support multiple recipients
@@ -254,7 +255,7 @@ public class EmailService {
         // Add PDF attachment
         FileAttachment attachment = new FileAttachment();
         attachment.setOdataType("#microsoft.graph.fileAttachment");
-        attachment.setName(appConfig.getEmail().getAttachmentFilename());
+        attachment.setName(attachmentFilename);
         attachment.setContentType("application/pdf");
         attachment.setContentBytes(pdfAttachment);
 
@@ -274,6 +275,7 @@ public class EmailService {
             String subject,
             String htmlBody,
             byte[] pdfAttachment,
+            String attachmentFilename,
             int rowNumber
     ) {
         /**

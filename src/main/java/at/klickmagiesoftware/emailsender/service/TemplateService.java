@@ -110,9 +110,9 @@ public class TemplateService {
 
             String value = null;
 
-            // First check if there's a field mapping for this placeholder
-            if (fieldMappings.containsKey(placeholder)) {
-                String sourceColumn = fieldMappings.get(placeholder);
+            // Check field mappings - try both with and without braces for compatibility
+            String sourceColumn = findFieldMappingSource(fieldMappings, fieldName);
+            if (sourceColumn != null) {
                 value = fields.get(sourceColumn);
             }
 
@@ -132,6 +132,49 @@ public class TemplateService {
     }
 
     /**
+     * Processes the attachment filename template with simple placeholder replacement.
+     * Uses {{fieldName}} syntax for placeholders.
+     *
+     * @param emailData the data to use for template substitution
+     * @return the processed attachment filename
+     */
+    public String processAttachmentFilename(EmailData emailData) {
+        String filenameTemplate = appConfig.getEmail().getAttachmentFilename();
+        logger.debug("Processing attachment filename template: {}", filenameTemplate);
+
+        String result = filenameTemplate;
+        Map<String, String> fields = emailData.getFields();
+        Map<String, String> fieldMappings = appConfig.getFieldMappings();
+
+        Matcher matcher = EmailSenderConstants.PLACEHOLDER_PATTERN.matcher(filenameTemplate);
+        while (matcher.find()) {
+            String placeholder = matcher.group(0);
+            String fieldName = matcher.group(1);
+
+            String value = null;
+
+            // Check field mappings - try both with and without braces for compatibility
+            String sourceColumn = findFieldMappingSource(fieldMappings, fieldName);
+            if (sourceColumn != null) {
+                value = fields.get(sourceColumn);
+            }
+
+            // If no mapping or mapping didn't resolve, try direct field name
+            if (value == null) {
+                value = fields.get(fieldName);
+            }
+
+            if (value != null) {
+                result = result.replace(placeholder, value);
+            } else {
+                logger.warn("No value found for placeholder '{}' in attachment filename template", placeholder);
+            }
+        }
+
+        return result;
+    }
+
+    /**
      * Reads the raw template content from a file.
      *
      * @param templatePath the path to the template file
@@ -143,5 +186,36 @@ public class TemplateService {
         } catch (IOException e) {
             throw new EmailSenderException("Failed to read template file: " + templatePath, e);
         }
+    }
+
+    /**
+     * Finds the source column for a field mapping by checking multiple key formats.
+     * This handles cases where field mappings may be defined with or without braces.
+     *
+     * @param fieldMappings the field mappings map
+     * @param fieldName the field name without braces (e.g., "name")
+     * @return the source column name, or null if no mapping exists
+     */
+    private String findFieldMappingSource(Map<String, String> fieldMappings, String fieldName) {
+        // Try with braces first (e.g., "{{name}}")
+        String withBraces = "{{" + fieldName + "}}";
+        if (fieldMappings.containsKey(withBraces)) {
+            return fieldMappings.get(withBraces);
+        }
+
+        // Try without braces (e.g., "name")
+        if (fieldMappings.containsKey(fieldName)) {
+            return fieldMappings.get(fieldName);
+        }
+
+        // Check all keys by stripping braces for comparison
+        for (Map.Entry<String, String> entry : fieldMappings.entrySet()) {
+            String key = entry.getKey().replace("{{", "").replace("}}", "");
+            if (key.equals(fieldName)) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
     }
 }

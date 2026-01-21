@@ -216,6 +216,92 @@ class TemplateServiceTest {
         );
     }
 
+    @Test
+    void processAttachmentFilename_simplePlaceholders_replacesCorrectly() throws IOException {
+        // Arrange
+        Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
+        appConfig.getTemplates().setEmailBody(templatePath.toString());
+        appConfig.getEmail().setAttachmentFilename("{{name}}_{{company}}_report.pdf");
+
+        TemplateService service = new TemplateService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("name", "John");
+        fields.put("company", "Acme");
+        EmailData emailData = new EmailData("john@example.com", fields, 1);
+
+        // Act
+        String result = service.processAttachmentFilename(emailData);
+
+        // Assert
+        assertEquals("John_Acme_report.pdf", result);
+    }
+
+    @Test
+    void processAttachmentFilename_withFieldMappings_usesMapping() throws IOException {
+        // Arrange
+        Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
+        appConfig.getTemplates().setEmailBody(templatePath.toString());
+        appConfig.getEmail().setAttachmentFilename("{{name}}_report.pdf");
+
+        Map<String, String> fieldMappings = new HashMap<>();
+        fieldMappings.put("{{name}}", "FullName");
+        appConfig.setFieldMappings(fieldMappings);
+
+        TemplateService service = new TemplateService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("FullName", "Jane Smith");
+        fields.put("name", "WrongName"); // Direct match should be overridden by mapping
+        EmailData emailData = new EmailData("jane@example.com", fields, 1);
+
+        // Act
+        String result = service.processAttachmentFilename(emailData);
+
+        // Assert
+        assertEquals("Jane Smith_report.pdf", result);
+    }
+
+    @Test
+    void processAttachmentFilename_noPlaceholders_returnsOriginal() throws IOException {
+        // Arrange
+        Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
+        appConfig.getTemplates().setEmailBody(templatePath.toString());
+        appConfig.getEmail().setAttachmentFilename("static-report.pdf");
+
+        TemplateService service = new TemplateService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        EmailData emailData = new EmailData("john@example.com", fields, 1);
+
+        // Act
+        String result = service.processAttachmentFilename(emailData);
+
+        // Assert
+        assertEquals("static-report.pdf", result);
+    }
+
+    @Test
+    void processAttachmentFilename_missingPlaceholder_keepsPlaceholder() throws IOException {
+        // Arrange
+        Path templatePath = createHtmlTemplate("<html><body>Hello</body></html>");
+        appConfig.getTemplates().setEmailBody(templatePath.toString());
+        appConfig.getEmail().setAttachmentFilename("{{name}}_{{code}}_report.pdf");
+
+        TemplateService service = new TemplateService(appConfig);
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("name", "John");
+        // Note: 'code' field is missing
+        EmailData emailData = new EmailData("john@example.com", fields, 1);
+
+        // Act
+        String result = service.processAttachmentFilename(emailData);
+
+        // Assert
+        assertEquals("John_{{code}}_report.pdf", result);
+    }
+
     private Path createHtmlTemplate(String content) throws IOException {
         Path templatePath = tempDir.resolve("template.html");
         Files.writeString(templatePath, content);
