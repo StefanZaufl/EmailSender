@@ -6,29 +6,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Email Sender CLI - A Java CLI application for sending personalized emails with PDF attachments via Microsoft 365 Graph API. Reads recipient data from CSV/Excel files, processes Word templates with placeholders, converts to PDF, and sends via OAuth2 authentication.
 
+## Project Structure
+
+Multi-module Maven project:
+- **`core/`** — Services, configuration, models, exceptions, utilities (reusable library)
+- **`cli/`** — Spring Boot application entry point + Picocli CLI command (executable)
+
 ## Build & Development Commands
 
 ```bash
-# Build the project
+# Build the project (from root)
 mvn clean package
 
-# Run tests
+# Run tests (all modules)
 mvn test
 
+# Run tests for a single module
+mvn test -pl core
+mvn test -pl cli
+
 # Run a single test class
-mvn test -Dtest=TemplateServiceTest
+mvn test -pl core -Dtest=TemplateServiceTest
 
 # Run a single test method
-mvn test -Dtest=TemplateServiceTest#testProcessSubjectWithPlaceholders
+mvn test -pl core -Dtest=TemplateServiceTest#testProcessSubjectWithPlaceholders
 
 # Run the application
-java --enable-preview -jar target/email-sender-cli-1.2.0-SNAPSHOT.jar --spring.config.import=/path/to/config.yml
+java --enable-preview -jar cli/target/email-sender-cli-2.0.1-SNAPSHOT.jar --spring.config.import=/path/to/config.yml
 
 # Run with dry-run mode (no emails sent, writes to disk)
-java --enable-preview -jar target/email-sender-cli-1.2.0-SNAPSHOT.jar --spring.config.import=/path/to/config.yml --dry-run -o ./output
+java --enable-preview -jar cli/target/email-sender-cli-2.0.1-SNAPSHOT.jar --spring.config.import=/path/to/config.yml --dry-run -o ./output
 
 # Run with verbose logging
-java --enable-preview -jar target/email-sender-cli-1.2.0-SNAPSHOT.jar --spring.config.import=/path/to/config.yml --verbose
+java --enable-preview -jar cli/target/email-sender-cli-2.0.1-SNAPSHOT.jar --spring.config.import=/path/to/config.yml --verbose
 ```
 
 **Note:** Java 25 with `--enable-preview` flag is required.
