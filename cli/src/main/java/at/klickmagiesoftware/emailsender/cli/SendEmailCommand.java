@@ -200,19 +200,15 @@ public class SendEmailCommand implements Callable<Integer> {
             throw new EmailSenderException("Email body template not found: " + templatesConfig.getEmailBody());
         }
 
-        // Validate all attachment templates exist
+        // Validate all attachment templates exist (if any are configured)
         List<AppConfig.AttachmentConfig> attachments = templatesConfig.getAttachments();
-        if (attachments.isEmpty()) {
-            throw new EmailSenderException("No attachment templates configured");
-        }
-
         for (AppConfig.AttachmentConfig attachment : attachments) {
             if (!Files.exists(Path.of(attachment.getTemplate()))) {
                 throw new EmailSenderException("Attachment template not found: " + attachment.getTemplate());
             }
         }
 
-        logger.info("Configuration validated successfully ({} attachment template(s))", attachments.size());
+        logger.info("Configuration validated successfully ({} attachment template(s))",  attachments.size());
     }
 
     private List<EmailData> readDataSource() {

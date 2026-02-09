@@ -1,18 +1,12 @@
 package at.klickmagiesoftware.emailsender.service;
 
-import com.microsoft.graph.models.Attachment;
-import com.microsoft.graph.models.BodyType;
-import com.microsoft.graph.models.EmailAddress;
-import com.microsoft.graph.models.FileAttachment;
-import com.microsoft.graph.models.ItemBody;
-import com.microsoft.graph.models.Message;
-import com.microsoft.graph.models.Recipient;
-import com.microsoft.graph.serviceclient.GraphServiceClient;
-import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
-import com.microsoft.kiota.ApiException;
 import at.klickmagiesoftware.emailsender.config.AppConfig;
 import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
 import at.klickmagiesoftware.emailsender.model.EmailData;
+import com.microsoft.graph.models.*;
+import com.microsoft.graph.serviceclient.GraphServiceClient;
+import com.microsoft.graph.users.item.sendmail.SendMailPostRequestBody;
+import com.microsoft.kiota.ApiException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -270,17 +264,19 @@ public class EmailService {
         body.setContent(htmlBody);
         message.setBody(body);
 
-        // Add all attachments
-        List<Attachment> attachments = new ArrayList<>();
-        for (AttachmentData attachmentData : attachmentDataList) {
-            FileAttachment attachment = new FileAttachment();
-            attachment.setOdataType("#microsoft.graph.fileAttachment");
-            attachment.setName(attachmentData.filename());
-            attachment.setContentType(attachmentData.contentType());
-            attachment.setContentBytes(attachmentData.content());
-            attachments.add(attachment);
+        // Add attachments (only if there are any, to avoid sending empty array to Graph API)
+        if (!attachmentDataList.isEmpty()) {
+            List<Attachment> attachments = new ArrayList<>();
+            for (AttachmentData attachmentData : attachmentDataList) {
+                FileAttachment attachment = new FileAttachment();
+                attachment.setOdataType("#microsoft.graph.fileAttachment");
+                attachment.setName(attachmentData.filename());
+                attachment.setContentType(attachmentData.contentType());
+                attachment.setContentBytes(attachmentData.content());
+                attachments.add(attachment);
+            }
+            message.setAttachments(attachments);
         }
-        message.setAttachments(attachments);
 
         return message;
     }

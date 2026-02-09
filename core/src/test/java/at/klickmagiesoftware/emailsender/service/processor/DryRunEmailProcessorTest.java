@@ -180,6 +180,45 @@ class DryRunEmailProcessorTest {
     }
 
     @Test
+    void process_noAttachments_writesHtmlAndMetaOnly() throws IOException {
+        // Arrange
+        processor.setOutputDirectory(tempDir.toString());
+
+        Map<String, String> fields = new HashMap<>();
+        fields.put("name", "No Attach User");
+        EmailData emailData = new EmailData("noattach@example.com", fields, 3);
+
+        EmailService.EmailContent content = new EmailService.EmailContent(
+                List.of("noattach@example.com"),
+                "No Attachment Subject",
+                "<html><body>No attachments here</body></html>",
+                List.of(), // empty attachments
+                3
+        );
+        when(emailService.prepareEmail(any(EmailData.class))).thenReturn(content);
+
+        // Act
+        processor.process(emailData);
+
+        // Assert - HTML and meta files should exist
+        Path htmlFile = tempDir.resolve("row3_noattach@example.com_body.html");
+        Path metaFile = tempDir.resolve("row3_noattach@example.com_meta.txt");
+        assertTrue(Files.exists(htmlFile), "HTML file should exist");
+        assertTrue(Files.exists(metaFile), "Meta file should exist");
+
+        // Assert - no PDF files should exist
+        try (var files = Files.list(tempDir)) {
+            long pdfCount = files.filter(p -> p.toString().endsWith(".pdf")).count();
+            assertEquals(0, pdfCount, "No PDF files should be created");
+        }
+
+        // Assert - meta file should show 0 attachments
+        String metaContent = Files.readString(metaFile);
+        assertTrue(metaContent.contains("Attachment Count: 0"));
+        assertTrue(metaContent.contains("No Attachment Subject"));
+    }
+
+    @Test
     void process_sanitizesEmailInFilename() {
         // Arrange
         processor.setOutputDirectory(tempDir.toString());

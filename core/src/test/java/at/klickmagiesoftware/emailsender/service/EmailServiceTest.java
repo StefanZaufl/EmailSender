@@ -1,29 +1,23 @@
 package at.klickmagiesoftware.emailsender.service;
 
+import at.klickmagiesoftware.emailsender.config.AppConfig;
+import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
+import at.klickmagiesoftware.emailsender.model.EmailData;
 import com.microsoft.graph.serviceclient.GraphServiceClient;
 import com.microsoft.graph.users.UsersRequestBuilder;
 import com.microsoft.graph.users.item.UserItemRequestBuilder;
 import com.microsoft.graph.users.item.sendmail.SendMailRequestBuilder;
 import com.microsoft.kiota.ApiException;
 import com.microsoft.kiota.ResponseHeaders;
-import at.klickmagiesoftware.emailsender.config.AppConfig;
-import at.klickmagiesoftware.emailsender.exception.EmailSenderException;
-import at.klickmagiesoftware.emailsender.model.EmailData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
@@ -323,6 +317,40 @@ class EmailServiceTest {
         assertEquals("bob@example.com", content.recipientEmails().get(2));
         assertEquals("john@example.com", content.recipientEmail()); // Backwards compatibility
         assertEquals("john@example.com, jane@example.com, bob@example.com", content.recipientsAsString());
+    }
+
+    // ==================== No Attachment Tests ====================
+
+    @Test
+    void sendEmail_noAttachments_sendsSuccessfully() {
+        // Arrange - configure with no attachments
+        appConfig.getTemplates().setAttachments(List.of());
+        EmailData emailData = createEmailData();
+
+        // Act
+        emailService.sendEmail(emailData);
+
+        // Assert
+        verify(sendMailRequestBuilder, times(1)).post(any());
+        verify(pdfGeneratorService, never()).generatePdf(anyString(), any());
+    }
+
+    @Test
+    void prepareEmail_noAttachments_returnsEmptyAttachmentList() {
+        // Arrange - configure with no attachments
+        appConfig.getTemplates().setAttachments(List.of());
+        EmailData emailData = createEmailData();
+        when(templateService.processSubject(emailData)).thenReturn("No Attachment Subject");
+        when(templateService.processEmailBody(emailData)).thenReturn("<html>Body</html>");
+
+        // Act
+        EmailService.EmailContent content = emailService.prepareEmail(emailData);
+
+        // Assert
+        assertEquals("No Attachment Subject", content.subject());
+        assertEquals("<html>Body</html>", content.htmlBody());
+        assertTrue(content.attachments().isEmpty());
+        verify(pdfGeneratorService, never()).generatePdf(anyString(), any());
     }
 
     // ==================== Group Sender Tests ====================

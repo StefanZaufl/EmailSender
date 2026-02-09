@@ -2,15 +2,7 @@ package at.klickmagiesoftware.emailsender.integration;
 
 import at.klickmagiesoftware.emailsender.cli.SendEmailCommand;
 import at.klickmagiesoftware.emailsender.config.AppConfig;
-import at.klickmagiesoftware.emailsender.service.CsvDataSourceReader;
-import at.klickmagiesoftware.emailsender.service.DataSourceReader;
-import at.klickmagiesoftware.emailsender.service.EmailAddressService;
-import at.klickmagiesoftware.emailsender.service.EmailService;
-import at.klickmagiesoftware.emailsender.service.ExcelDataSourceReader;
-import at.klickmagiesoftware.emailsender.service.PdfGeneratorService;
-import at.klickmagiesoftware.emailsender.service.ReportService;
-import at.klickmagiesoftware.emailsender.service.SenderTypeResolver;
-import at.klickmagiesoftware.emailsender.service.TemplateService;
+import at.klickmagiesoftware.emailsender.service.*;
 import at.klickmagiesoftware.emailsender.service.processor.DryRunEmailProcessor;
 import at.klickmagiesoftware.emailsender.service.processor.LiveEmailProcessor;
 import org.apache.pdfbox.Loader;
@@ -298,6 +290,105 @@ class DryRunIntegrationTest {
         // All 4 recipients should be recorded
         long successCount = reportLines.stream().filter(line -> line.contains("Success")).count();
         assertEquals(4, successCount, "All 4 recipients should be recorded as successful");
+    }
+
+    @Test
+    void dryRun_withNoAttachments_createsOutputFiles() throws Exception {
+        // Arrange
+        Path csvFile = createTestCsvFile();
+        Path emailTemplate = createEmailTemplate();
+        Path reportPath = reportDir.resolve("no-attachment-report.csv");
+
+        AppConfig appConfig = createAppConfigWithoutAttachments("csv", csvFile, emailTemplate, reportPath);
+
+        // Create real services (no mocks except for SenderTypeResolver which is not used in dry-run)
+        TemplateService templateService = new TemplateService(appConfig);
+        PdfGeneratorService pdfGeneratorService = new PdfGeneratorService(appConfig);
+        when(senderTypeResolver.isSendFromGroup()).thenReturn(false);
+        when(senderTypeResolver.getSenderEmail()).thenReturn("sender@example.com");
+        EmailService emailService = new EmailService(null, appConfig, templateService, pdfGeneratorService, senderTypeResolver);
+
+        EmailAddressService emailAddressService = new EmailAddressService();
+        List<DataSourceReader> readers = List.of(new CsvDataSourceReader(emailAddressService), new ExcelDataSourceReader(emailAddressService));
+        DryRunEmailProcessor dryRunProcessor = new DryRunEmailProcessor(emailService);
+        ReportService reportService = new ReportService(appConfig);
+
+        SendEmailCommand command = new SendEmailCommand(appConfig, readers, liveEmailProcessor, dryRunProcessor, reportService);
+        CommandLine commandLine = new CommandLine(command);
+
+        // Act
+        int exitCode = commandLine.execute("--dry-run", "--output-dir=" + outputDir.toString());
+
+        // Assert
+        assertEquals(0, exitCode, "Command should complete successfully");
+
+        // Verify HTML and meta files were created for the 3 rows with SendEmail=Yes
+        assertTrue(Files.exists(outputDir.resolve("row2_john.doe@example.com_body.html")));
+        assertTrue(Files.exists(outputDir.resolve("row2_john.doe@example.com_meta.txt")));
+        assertTrue(Files.exists(outputDir.resolve("row3_jane.smith@example.com_body.html")));
+        assertTrue(Files.exists(outputDir.resolve("row3_jane.smith@example.com_meta.txt")));
+        assertTrue(Files.exists(outputDir.resolve("row5_alice.johnson@example.com_body.html")));
+        assertTrue(Files.exists(outputDir.resolve("row5_alice.johnson@example.com_meta.txt")));
+
+        // Verify NO PDF attachment files were created
+        assertFalse(Files.exists(outputDir.resolve("row2_john.doe@example.com_attachment.pdf")));
+        assertFalse(Files.exists(outputDir.resolve("row3_jane.smith@example.com_attachment.pdf")));
+        assertFalse(Files.exists(outputDir.resolve("row5_alice.johnson@example.com_attachment.pdf")));
+
+        // Verify meta file shows 0 attachments
+        String metaContent = Files.readString(outputDir.resolve("row2_john.doe@example.com_meta.txt"));
+        assertTrue(metaContent.contains("Attachment Count: 0"));
+
+        // Verify HTML body content still contains personalized data
+        String htmlContent = Files.readString(outputDir.resolve("row2_john.doe@example.com_body.html"));
+        assertTrue(htmlContent.contains("John Doe"), "HTML should contain recipient name");
+        assertTrue(htmlContent.contains("Acme Corp"), "HTML should contain company name");
+
+        // Verify the CSV report was generated
+        assertTrue(Files.exists(reportPath), "Report file should be created");
+        List<String> reportLines = Files.readAllLines(reportPath);
+        assertEquals(4, reportLines.size(), "Report should have header + 3 data rows");
+    }
+
+    private AppConfig createAppConfigWithoutAttachments(String dataSourceType, Path dataSourcePath,
+                                                         Path emailTemplatePath, Path reportPath) {
+        AppConfig appConfig = new AppConfig();
+
+        AppConfig.MicrosoftConfig microsoftConfig = new AppConfig.MicrosoftConfig();
+        microsoftConfig.setTenantId("test-tenant");
+        microsoftConfig.setClientId("test-client");
+        microsoftConfig.setClientSecret("test-secret");
+        appConfig.setMicrosoft(microsoftConfig);
+
+        AppConfig.DatasourceConfig datasourceConfig = new AppConfig.DatasourceConfig();
+        datasourceConfig.setType(dataSourceType);
+        datasourceConfig.setPath(dataSourcePath.toString());
+        datasourceConfig.setProcessColumn("SendEmail");
+        datasourceConfig.setProcessValue("Yes");
+        appConfig.setDatasource(datasourceConfig);
+
+        AppConfig.TemplatesConfig templatesConfig = new AppConfig.TemplatesConfig();
+        templatesConfig.setEmailBody(emailTemplatePath.toString());
+        // No attachments configured
+        appConfig.setTemplates(templatesConfig);
+
+        AppConfig.EmailConfig emailConfig = new AppConfig.EmailConfig();
+        emailConfig.setSenderEmail("sender@example.com");
+        emailConfig.setSubjectTemplate("Report for {{FullName}}");
+        emailConfig.setRecipientColumn("Email");
+        appConfig.setEmail(emailConfig);
+
+        AppConfig.ThrottlingConfig throttlingConfig = new AppConfig.ThrottlingConfig();
+        throttlingConfig.setEnabled(false);
+        appConfig.setThrottling(throttlingConfig);
+
+        if (reportPath != null) {
+            AppConfig.ReportConfig reportConfig = new AppConfig.ReportConfig();
+            reportConfig.setOutputPath(reportPath.toString());
+            appConfig.setReport(reportConfig);
+        }
+
+        return appConfig;
     }
 
     private Path createTestCsvFileWithMultipleRecipients() throws IOException {
