@@ -3,17 +3,12 @@ package at.klickmagiesoftware.emailsender.config;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Main configuration class for the email sender application.
@@ -222,7 +217,6 @@ public class AppConfig {
         private String emailBody;
 
         @Valid
-        @NotEmpty(message = "At least one attachment must be configured")
         private List<AttachmentConfig> attachments = new ArrayList<>();
 
         public String getEmailBody() {
