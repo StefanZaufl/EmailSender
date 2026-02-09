@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Define log file location in current working directory -->
+    <property name="LOG_PATH" value="${LOG_PATH:-.}"/>
+    <property name="LOG_FILE" value="${LOG_FILE:-email-sender}"/>
+
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling File Appender -->
+    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${LOG_FILE}.log</file>
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- Daily rollover with max file size -->
+            <fileNamePattern>${LOG_PATH}/${LOG_FILE}-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <!-- Each file should be at most 10MB -->
+            <maxFileSize>10MB</maxFileSize>
+            <!-- Keep 30 days worth of history, capped at 100MB total size -->
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- Application-specific logging level -->
+    <logger name="at.klickmagiesoftware.emailsender" level="INFO"/>
+
+    <!-- Reduce noise from libraries -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.docx4j" level="WARN"/>
+    <logger name="org.apache.poi" level="WARN"/>
+    <logger name="com.microsoft.graph" level="WARN"/>
+
+    <!-- Root logger configuration -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ROLLING_FILE"/>
+    </root>
+</configuration>
